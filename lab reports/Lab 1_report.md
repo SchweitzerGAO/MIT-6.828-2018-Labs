@@ -1,4 +1,4 @@
-# Lab 1 Report——搭建环境，初探内核
+# Lab 1 Report——搭建环境&启动
 
 [TOC]
 
