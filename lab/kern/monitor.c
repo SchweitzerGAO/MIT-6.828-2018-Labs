@@ -25,6 +25,7 @@ struct Command {
 static struct Command commands[] = {
 	{ "help", "Display this list of commands", mon_help },
 	{ "kerninfo", "Display information about the kernel", mon_kerninfo },
+	{ "backtrace", "Trace back call stack", mon_backtrace },
 };
 
 /***** Implementations of basic kernel monitor commands *****/
@@ -59,6 +60,37 @@ int
 mon_backtrace(int argc, char **argv, struct Trapframe *tf)
 {
 	// Your code here.
+	typedef int (*this_func_type)(int, char **, struct Trapframe *);
+	uint32_t ebp = read_ebp();
+	int *ebp_base_ptr = (int *)ebp;           
+	uint32_t eip = ebp_base_ptr[1];   
+	while (1) {
+        // print address and arguments info
+        cprintf("ebp %x, eip %x, args ", ebp, eip);
+
+        int *args = ebp_base_ptr + 2;
+
+        for (int i = 0; i < 5; ++i) {
+            cprintf("%x ", args[i]);
+        }
+        cprintf("\n");
+        
+        // print file line info 
+        struct Eipdebuginfo info;
+        int ret = debuginfo_eip(eip, &info);
+        cprintf("    at %s: %d: %.*s+%d\n",
+                info.eip_file, info.eip_line, info.eip_fn_namelen, info.eip_fn_name, eip - info.eip_fn_addr);
+
+		// there aren't any info?
+        if (ret) {
+            break;
+        }
+        // update the values
+        ebp = *ebp_base_ptr;
+        ebp_base_ptr = (int*)ebp;
+        eip = ebp_base_ptr[1];
+	}
+
 	return 0;
 }
 
@@ -118,6 +150,10 @@ monitor(struct Trapframe *tf)
 
 	if (tf != NULL)
 		print_trapframe(tf);
+	// int x = 1, y = 3, z = 4;
+	// cprintf("x %d, y %x, z %d\n", x, y, z);
+	// unsigned int i = 0x00646c72;
+ 	// cprintf("H%x Wo%s", 57616, &i);
 
 	while (1) {
 		buf = readline("K> ");

@@ -123,6 +123,7 @@ boot_alloc(uint32_t n)
 		return NULL;
 	}
 	return result;
+
 }
 
 // Set up a two-level page table:
@@ -205,7 +206,7 @@ mem_init(void)
 	//    - the new image at UENVS  -- kernel R, user R
 	//    - envs itself -- kernel RW, user NONE
 	// LAB 3: Your code here.
-	boot_map_region(kern_pgdir,UENVS,PTSIZE,PADDR(envs),PTE_U);	
+	boot_map_region(kern_pgdir,UENVS,PTSIZE,PADDR(envs),PTE_U);
 	//////////////////////////////////////////////////////////////////////
 	// Use the physical memory that 'bootstack' refers to as the kernel
 	// stack.  The kernel stack grows down from virtual address KSTACKTOP.
@@ -287,10 +288,9 @@ page_init(void)
 
 	// IO hole page number
 	size_t num_iohole = (EXTPHYSMEM-IOPHYSMEM)/PGSIZE;
-
+    
 	// used extmem
 	size_t num_used = ((uint32_t)boot_alloc(0)-EXTPHYSMEM-KERNBASE)/PGSIZE;
-
 	for(size_t i = 0;i<npages;i++)
 	{
 		// requirement 1)
@@ -298,11 +298,13 @@ page_init(void)
 		{
 			pages[i].pp_ref = 1;
 		}
+
 		// requirement 3) and part of 4)
 		else if(i>=npages_basemem && i<npages_basemem+num_iohole+num_used)
 		{
 			pages[i].pp_ref = 1;
 		}
+
 		// rest requirements
 		else
 		{
@@ -310,9 +312,9 @@ page_init(void)
 			pages[i].pp_link = page_free_list;
 			page_free_list = &pages[i];
 		}
+
 	}
 
-	
 }
 
 //
@@ -331,19 +333,22 @@ struct PageInfo *
 page_alloc(int alloc_flags)
 {
 	// Fill this function in
-
+    
 	// no free page
 	if(page_free_list == NULL)
 	{
 		return NULL;
 	}
-
+    
 	// allocated page
 	struct PageInfo* alloc = page_free_list;
+    
 	// delete allocated page
 	page_free_list = page_free_list->pp_link;
-	// set NULL according to node
+
+	// set NULL according to note
 	alloc->pp_link = NULL;
+
 	// fills the entire returned physical page with '\0' bytes.
 	char* head = page2kva(alloc);
 	if(alloc_flags & ALLOC_ZERO)
@@ -352,6 +357,7 @@ page_alloc(int alloc_flags)
 	}
 	return alloc;
 }
+
 //
 // Return a page to the free list.
 // (This function should only be called when pp->pp_ref reaches 0.)
@@ -362,13 +368,16 @@ page_free(struct PageInfo *pp)
 	// Fill this function in
 	// Hint: You may want to panic if pp->pp_ref is nonzero or
 	// pp->pp_link is not NULL.
-
+	// Fill this function in
+	// Hint: You may want to panic if pp->pp_ref is nonzero or
+	// pp->pp_link is not NULL.
+    
 	// panic conditions
-	if((pp->pp_ref != 0) | (pp->pp_link!=NULL))
+	if((pp->pp_ref != 0) | (pp->pp_link != NULL))  // referenced or freed
 	{
-		panic("at pmap.c:page_free():330 Page double free or freeing a referenced page");
+		panic("at pmap.c:page_free(): Page double free or freeing a referenced page");
 	}
-	
+    
 	// free page
 	pp->pp_link = page_free_list;
 	page_free_list = pp;
@@ -415,7 +424,7 @@ pgdir_walk(pde_t *pgdir, const void *va, int create)
 	unsigned int page_offset;
 	pte_t* page_base = NULL;
 	struct PageInfo* new_page = NULL;
-
+    
 	// page dir address
 	unsigned int dir_offset = PDX(va);
 	pde_t* entry = pgdir+dir_offset;
@@ -423,7 +432,7 @@ pgdir_walk(pde_t *pgdir, const void *va, int create)
 	// if not in main memory
 	if(!(*entry & PTE_P))
 	{
-	 	// if create is 1
+	 	// if create
 		if(create)
 		{
 	 		// allocate new page
@@ -439,7 +448,10 @@ pgdir_walk(pde_t *pgdir, const void *va, int create)
 		{
 			return NULL;
 		}
+
 	}
+    
+    // get the result
 	page_base = (pte_t*)KADDR(PTE_ADDR(*entry));
 	page_offset = PTX(va);
 	return &page_base[page_offset];
@@ -462,7 +474,8 @@ boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm
 	// Fill this function in
 	int add;
 	pte_t* entry = NULL;
-	// map the physical addr and virtual addr
+    
+	// map the physical addr to virtual addr
 	for(add = 0;add<size;add+=PGSIZE)
 	{
 		entry = pgdir_walk(pgdir,(void*)va,1);  // get the entry of page table
@@ -470,9 +483,7 @@ boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm
 		pa+=PGSIZE;
 		va+=PGSIZE;
 	}
-
 }
-
 
 //
 // Map the physical page 'pp' at virtual address 'va'.

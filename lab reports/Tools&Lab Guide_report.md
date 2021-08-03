@@ -24,8 +24,6 @@ sudo apt-get install gcc-multilib
 
 给出了lab中常用的终端命令，现整理如下，以便后续查阅，随实验更新
 
-（lab 1）
-
 `make qemu`:运行QEMU虚拟机，打开虚拟机界面
 
 `make qemu-nox`:仅在Linux终端运行QEMU(Optional)
@@ -41,3 +39,5 @@ sudo apt-get install gcc-multilib
 `x/{Num}i addr`:从addr开始显示之后Num字节指令的反汇编
 
 `x/{Num}x addr`:显示从addr开始Num字的内存内容。​
+
+`make clean`:删除之前的make版本

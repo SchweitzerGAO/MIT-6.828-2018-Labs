@@ -137,7 +137,7 @@ in %al, PortAddress ; 将端口号为PortAddress中的值读入寄存器al中
 
 在GDB 中使用指令`b *0x7c00`在0x7c00处设置断点,然后使用`c`让指令执行到断点处。为了查看反汇编过后的指令，使用`x/30i 0x7c00`，这条指令输出从0x7c00开始，后面30字节的指令的反汇编，结果如下图
 
-![image-20210722220611191](C:\Users\gaoyangfan\AppData\Roaming\Typora\typora-user-images\image-20210722220611191.png)
+![1-1](../images/1-1.png)
 
 再与boot/boot.S 和 obj/boot/boot.asm进行对比，发现反汇编过后的代码是一致的。
 
@@ -250,13 +250,19 @@ readsect(void *dst, uint32_t offset)
 
 按照Exercise7的步骤，执行到指令`movl %eax, %cr0`处停止，查看`0x00100000`处和`0x0f100000`处的内容，执行这条指令之后再次查看，结果如下
 
-![image-20210726105732313](C:\Users\gaoyangfan\AppData\Roaming\Typora\typora-user-images\image-20210726105732313.png)
+**执行前：**
+
+![1-2](../images/1-2.png)
+
+**执行后：**
+
+![1-3](../images/1-3.png)
 
 可见在执行了movl指令之后，虚拟地址被成功映射到物理地址上。
 
 若将这条指令注释掉，重新编译，则在此处会出现错误
 
-![image-20210726111102485](C:\Users\gaoyangfan\AppData\Roaming\Typora\typora-user-images\image-20210726111102485.png)
+![1-4](../images/1-4.png)
 
 这是因为注释掉的指令执行的是虚拟地址到物理地址的转换，缺少了这部分，程序就无法正确执行。
 
@@ -272,6 +278,10 @@ case 'o':
 		base = 8;
 		goto number;
 ```
+
+运行结果如下：
+
+![1-5](../images/1-5.png)
 
 回答部分问题:
 
@@ -305,7 +315,7 @@ cprintf("x %d, y %x, z %d\n", x, y, z);
 
 运行结果：
 
-![image-20210726131441681](C:\Users\gaoyangfan\AppData\Roaming\Typora\typora-user-images\image-20210726131441681.png)
+![1-6](../images/1-6.png)
 
 a. `cprintf()`中 `fmt`指向字符串`"x %d, y %x, z %d\n"`，`ap`指向所有可变参数，更准确地，`ap`指向可变参数的第一个字节
 
@@ -320,7 +330,7 @@ b. 每次运行到"%"之后就会从`ap`中取出一个变量，`ap`的长度也
 
 运行结果：
 
-![image-20210726135806356](C:\Users\gaoyangfan\AppData\Roaming\Typora\typora-user-images\image-20210726135806356.png)
+![1-7](../images/1-7.png)
 
 解释：
 
@@ -396,6 +406,7 @@ mon_backtrace(int argc, char **argv, struct Trapframe *tf)
 	int *ebp_base_ptr = (int *)ebp;           
 	uint32_t eip = ebp_base_ptr[1];   
 	while (1) {
+        
         // print address and arguments info
         cprintf("ebp %x, eip %x, args ", ebp, eip);
 
@@ -408,14 +419,15 @@ mon_backtrace(int argc, char **argv, struct Trapframe *tf)
         
         // print file line info 
         struct Eipdebuginfo info;
-        
-        // there aren't any info?
         int ret = debuginfo_eip(eip, &info);
         cprintf("    at %s: %d: %.*s+%d\n",
                 info.eip_file, info.eip_line, info.eip_fn_namelen, info.eip_fn_name, eip - info.eip_fn_addr);
+        
+         // there aren't any info?
         if (ret) {
             break;
         }
+        
         // update the values
         ebp = *ebp_base_ptr;
         ebp_base_ptr = (int*)ebp;
@@ -428,7 +440,7 @@ mon_backtrace(int argc, char **argv, struct Trapframe *tf)
 
 运行结果如下：
 
-![image-20210726173221539](C:\Users\gaoyangfan\AppData\Roaming\Typora\typora-user-images\image-20210726173221539.png)
+![1-8](../images/1-8.png)
 
 至此Lab 1 结束
 

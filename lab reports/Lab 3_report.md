@@ -27,6 +27,10 @@ boot_map_region(kern_pgdir,UENVS,PTSIZE,PADDR(envs),PTE_U);
 
 这使得代码能够通过新的`check_kern_pgdir()`函数，结果如下：
 
-![image-20210730165124571](C:\Users\gaoyangfan\AppData\Roaming\Typora\typora-user-images\image-20210730165124571.png)
+![3-1](../images/3-1.png)
+
+**从Lab2 合并之后出现的问题及解决：**
+
+
 
 ## 实验收获
