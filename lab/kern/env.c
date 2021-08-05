@@ -115,7 +115,16 @@ void
 env_init(void)
 {
 	// Set up envs array
+	// using head-insert to ensure the order in the same way
 	// LAB 3: Your code here.
+	env_free_list = NULL;
+	for(int i = NENV - 1; i>=0 ;i--)
+	{
+		envs[i].env_id = 0;
+		envs[i].env_status = ENV_FREE;
+		envs[i].env_link = env_free_list;
+		env_free_list = &envs[i];
+	}
 
 	// Per-CPU part of the initialization
 	env_init_percpu();
@@ -179,7 +188,21 @@ env_setup_vm(struct Env *e)
 	//    - The functions in kern/pmap.h are handy.
 
 	// LAB 3: Your code here.
+	e->env_pgdir = (pde_t*)page2kva(p);
+	p->pp_ref++;
 
+	// below UTOP
+	for(int i = 0;i<PDX(UTOP);i++)
+	{
+		e->env_pgdir[i] = 0;
+	}
+
+	// above UTOP
+	for(int i = PDX(UTOP);i<NPDENTRIES;i++)
+	{
+		e->env_pgdir[i] = kern_pgdir[i];
+	}
+	
 	// UVPT maps the env's own page table read-only.
 	// Permissions: kernel R, user R
 	e->env_pgdir[PDX(UVPT)] = PADDR(e->env_pgdir) | PTE_P | PTE_U;
@@ -267,6 +290,35 @@ region_alloc(struct Env *e, void *va, size_t len)
 	//   'va' and 'len' values that are not page-aligned.
 	//   You should round va down, and round (va + len) up.
 	//   (Watch out for corner-cases!)
+	void* start = (void*)ROUNDDOWN((uint32_t)va,PGSIZE);
+	void* end = (void*)ROUNDUP((uint32_t)va+len,PGSIZE);
+
+	// corner case 1: too large length
+	if(start>end)
+	{
+		panic("At region_alloc: too large length\n");
+	}
+	struct PageInfo* p = NULL;
+
+	// allocate PA by the size of a page
+	for(void* v = start;v<end;v+=PGSIZE)
+	{
+		p = page_alloc(0);
+		// corner case 2: page allocation failed
+		if(p == NULL)
+		{
+			panic("At region_alloc: Page allocation failed");
+		}
+
+		// insert into page table
+		int insert = page_insert(e->env_pgdir,p,v,PTE_W|PTE_U);
+
+		// corner case 3: insertion failed
+		if(insert!=0)
+		{
+			panic("At region_alloc: Page insertion failed");
+		}
+	}
 }
 
 //
