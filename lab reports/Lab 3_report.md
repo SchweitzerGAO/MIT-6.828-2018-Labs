@@ -5,7 +5,7 @@
 ## 实验内容
 
 1. 为`envs`分配存储空间并映射
-2. 实现`kern/env.c`的一些函数——用户环境初始化
+2. 实现`kern/env.c`的一些函数——用户环境初始化及运行
 
 ## 实验步骤
 
@@ -49,7 +49,7 @@ boot_map_region(kern_pgdir,UENVS,PTSIZE,PADDR(envs),PTE_U);
 
 就可以了
 
-### 2. 实现`kern/env.c`的一些函数——用户环境初始化
+### 2. 实现`kern/env.c`的一些函数——用户环境初始化及运行
 
 #### 1. `env_init()`函数
 
@@ -178,6 +178,178 @@ region_alloc(struct Env *e, void *va, size_t len)
 }
 ```
 
+#### 4.`load_icode()`函数
 
+这个函数加载一个二进制ELF文件，重点在解析ELF文件。实现如下，大部分实现细节在Hint里，我们需要注意的就是用`lcr3()`函数进行用户页表与内核页表的切换：
+
+```c
+static void
+load_icode(struct Env *e, uint8_t *binary)
+{
+	// Hints:
+	//  Load each program segment into virtual memory
+	//  at the address specified in the ELF segment header.
+	//  You should only load segments with ph->p_type == ELF_PROG_LOAD.
+	//  Each segment's virtual address can be found in ph->p_va
+	//  and its size in memory can be found in ph->p_memsz.
+	//  The ph->p_filesz bytes from the ELF binary, starting at
+	//  'binary + ph->p_offset', should be copied to virtual address
+	//  ph->p_va.  Any remaining memory bytes should be cleared to zero.
+	//  (The ELF header should have ph->p_filesz <= ph->p_memsz.)
+	//  Use functions from the previous lab to allocate and map pages.
+	//
+	//  All page protection bits should be user read/write for now.
+	//  ELF segments are not necessarily page-aligned, but you can
+	//  assume for this function that no two segments will touch
+	//  the same virtual page.
+	//
+	//  You may find a function like region_alloc useful.
+	//
+	//  Loading the segments is much simpler if you can move data
+	//  directly into the virtual addresses stored in the ELF binary.
+	//  So which page directory should be in force during
+	//  this function?
+	//
+	//  You must also do something with the program's entry point,
+	//  to make sure that the environment starts executing there.
+	//  What?  (See env_run() and env_pop_tf() below.)
+
+	// LAB 3: Your code here.
+	// convert to Elf
+	struct Elf* elfHeader = (struct Elf*) binary;
+
+	// corner case 1: Invalid head magic number
+	if(elfHeader->e_magic != ELF_MAGIC)
+	{
+		panic("At load_icode: Invalid head magic number");
+	}
+    
+    // switch to user page directory
+	lcr3(PADDR(e->env_pgdir));
+	// load each segment
+	struct Proghdr* ph = (struct Proghdr*)(binary+elfHeader->e_phoff);
+	struct Proghdr* phEnd = ph+elfHeader->e_phnum;
+	for(;ph<phEnd;ph++)
+	{
+
+		// go as hint says
+		if(ph->p_type == ELF_PROG_LOAD)
+		{
+			// corner case 2: file size too big
+			if(ph->p_filesz>ph->p_memsz)
+			{
+				panic("At load_icode: file size bigger than memory size");
+			}
+            
+			// allocate space 
+			region_alloc(e,(void*) ph->p_va,ph->p_memsz);
+
+			// copy to VA
+			memcpy((void*)ph->p_va,binary+ph->p_offset,ph->p_filesz);
+
+			// set the rest to 0
+			memset((void*)(ph->p_va+ph->p_filesz),0,ph->p_memsz-ph->p_filesz);
+		}
+
+	// switch back to kernel address mappings
+	lcr3(PADDR(kern_pgdir));
+	// set runnable
+	e->env_status = ENV_RUNNABLE;
+	// set trapframe entry
+	e->env_tf.tf_eip = elfHeader->e_entry;
+
+	// Now map one page for the program's initial stack
+	// at virtual address USTACKTOP - PGSIZE.
+
+	// LAB 3: Your code here.
+	region_alloc(e,(void*)(USTACKTOP-PGSIZE),PGSIZE);
+    
+```
+
+#### 5. `env_create()`函数
+
+这个函数是利用前面实现的函数进行用户环境的创建，实现如下：
+
+``` c
+void
+env_create(uint8_t *binary, enum EnvType type)
+{
+	// LAB 3: Your code here.
+	struct Env* e;
+	int alloc = env_alloc(&e,0);
+	if(alloc != 0)
+	{
+		panic("At env_create: env_alloc() failed");
+	}
+	load_icode(e,binary);
+	e->env_type = type;
+}
+```
+
+#### 6. `env_run()`函数
+
+这个函数用于启动用户环境，进行上下文切换，实现如下：
+
+```c
+void
+env_run(struct Env *e)
+{
+	// Step 1: If this is a context switch (a new environment is running):
+	//	   1. Set the current environment (if any) back to
+	//	      ENV_RUNNABLE if it is ENV_RUNNING (think about
+	//	      what other states it can be in),
+	//	   2. Set 'curenv' to the new environment,
+	//	   3. Set its status to ENV_RUNNING,
+	//	   4. Update its 'env_runs' counter,
+	//	   5. Use lcr3() to switch to its address space.
+	// Step 2: Use env_pop_tf() to restore the environment's
+	//	   registers and drop into user mode in the
+	//	   environment.
+
+	// Hint: This function loads the new environment's state from
+	//	e->env_tf.  Go back through the code you wrote above
+	//	and make sure you have set the relevant parts of
+	//	e->env_tf to sensible values.
+
+	// LAB 3: Your code here.
+
+	// panic("env_run not yet implemented");
+
+	// step 1
+	// set the env_status field
+	if(curenv)
+	{
+		if(curenv->env_status == ENV_RUNNING)
+		{
+			curenv->env_status = ENV_RUNNABLE;
+		}
+	}
+    
+	// switch to new environment
+	curenv = e;
+	curenv->env_status = ENV_RUNNING;
+	curenv->env_runs++;
+	// switch to user page directory
+	lcr3(PADDR(curenv->env_pgdir));
+    
+	// step 2
+	env_pop_tf(&curenv->env_tf);
+
+
+
+}
+```
+
+此时再编译运行，就会进入用户环境，但是会出现一个triple fault 的问题，后面会解决。目前运行结果如下
+
+![3-2](../images/3-2.png)
+
+**上图实际上是有问题的，它在错误的位置引发了triple fault**，经过查阅资料和gdb调试，发现在`load_icode()`函数中忘记用`lcr3()`函数切换到用户页表，现在已经加上了。正确结果如下图：
+
+![3-3](../images/3-3.png)
+
+打断点发现无法执行下面的指令：
+
+![3-4](../images/3-4.png)
 
 ## 实验收获

@@ -375,11 +375,51 @@ load_icode(struct Env *e, uint8_t *binary)
 	//  What?  (See env_run() and env_pop_tf() below.)
 
 	// LAB 3: Your code here.
+	
+	// convert to Elf
+	struct Elf* elfHeader = (struct Elf*) binary;
+	// corner case 1: Invalid head magic number
+	if(elfHeader->e_magic != ELF_MAGIC)
+	{
+		panic("At load_icode: Invalid head magic number");
+	}
+	// switch to user page directory
+	lcr3(PADDR(e->env_pgdir));
+	// load each segment
+	struct Proghdr* ph = (struct Proghdr*)(binary+elfHeader->e_phoff);
+	struct Proghdr* phEnd = ph+elfHeader->e_phnum;
+	for(;ph<phEnd;ph++)
+	{
+		// go as hint says
+		if(ph->p_type == ELF_PROG_LOAD)
+		{
+			// corner case 2: file size too big
+			if(ph->p_filesz>ph->p_memsz)
+			{
+				panic("At load_icode: file size bigger than memory size");
+			}
+			// allocate space 
+			region_alloc(e,(void*) ph->p_va,ph->p_memsz);
+			// copy to VA
+			memcpy((void*)ph->p_va,binary+ph->p_offset,ph->p_filesz);
+			// set the rest to 0
+			memset((void*)(ph->p_va+ph->p_filesz),0,ph->p_memsz-ph->p_filesz);
 
+		}
+	}
+
+	// switch back to kernel address mappings
+	lcr3(PADDR(kern_pgdir));
+	// set runnable
+	e->env_status = ENV_RUNNABLE;
+
+	// set trapframe entry
+	e->env_tf.tf_eip = elfHeader->e_entry;
 	// Now map one page for the program's initial stack
 	// at virtual address USTACKTOP - PGSIZE.
 
 	// LAB 3: Your code here.
+	region_alloc(e,(void*)(USTACKTOP-PGSIZE),PGSIZE);
 }
 
 //
@@ -393,6 +433,14 @@ void
 env_create(uint8_t *binary, enum EnvType type)
 {
 	// LAB 3: Your code here.
+	struct Env* e;
+	int alloc = env_alloc(&e,0);
+	if(alloc != 0)
+	{
+		panic("At env_create: env_alloc() failed");
+	}
+	load_icode(e,binary);
+	e->env_type = type;
 }
 
 //
@@ -509,7 +557,28 @@ env_run(struct Env *e)
 	//	e->env_tf to sensible values.
 
 	// LAB 3: Your code here.
+	
+	// panic("env_run not yet implemented");
 
-	panic("env_run not yet implemented");
+	// step 1
+	// set the env_status field
+	if(curenv)
+	{
+		if(curenv->env_status == ENV_RUNNING)
+		{
+			curenv->env_status = ENV_RUNNABLE;
+		}
+	}
+
+	// switch to new environment
+	curenv = e;
+	curenv->env_status = ENV_RUNNING;
+	curenv->env_runs++;
+	// switch to user page directory
+	lcr3(PADDR(curenv->env_pgdir));
+
+	// step 2
+	env_pop_tf(&curenv->env_tf);
+
 }
 
