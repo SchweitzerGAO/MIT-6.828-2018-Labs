@@ -6,6 +6,7 @@
 
 1. 为`envs`分配存储空间并映射
 2. 实现`kern/env.c`的一些函数——用户环境初始化及运行
+3. 中断初始化
 
 ## 实验步骤
 
@@ -351,5 +352,141 @@ env_run(struct Env *e)
 打断点发现无法执行下面的指令：
 
 ![3-4](../images/3-4.png)
+
+### 3. 中断初始化
+
+中断处理要求我们解决2中出现的Triple Fault问题,也就是实现用户态到内核态的切换。具体工作如下：
+
+#### 1. 完善`trapentry.S`的代码
+
+需要补充的部分是不同中断的入口以及一个`_alltraps`函数，代码如下：
+
+```assembly
+/*
+ * Lab 3: Your code here for generating entry points for the different traps.
+ */
+
+/* 
+   2 macros are provided while TRAPHANDLER pushes an error code with interrupt number and TRAPHANDLER_NOEC
+   pushes a 0 with interrupt number
+*/
+TRAPHANDLER_NOEC(DIVIDE,T_DIVIDE)
+TRAPHANDLER_NOEC(DEBUG,T_DEBUG)
+TRAPHANDLER_NOEC(NMI, T_NMI)
+TRAPHANDLER_NOEC(BRKPT, T_BRKPT)
+TRAPHANDLER_NOEC(OFLOW, T_OFLOW)
+TRAPHANDLER_NOEC(BOUND, T_BOUND)
+TRAPHANDLER_NOEC(ILLOP, T_ILLOP)
+TRAPHANDLER_NOEC(DEVICE, T_DEVICE)
+TRAPHANDLER(DBLFLT, T_DBLFLT)
+TRAPHANDLER(TSS, T_TSS)
+TRAPHANDLER(SEGNP, T_SEGNP)
+TRAPHANDLER(STACK, T_STACK)
+TRAPHANDLER(GPFLT, T_GPFLT)
+TRAPHANDLER(PGFLT, T_PGFLT)
+TRAPHANDLER_NOEC(FPERR, T_FPERR)
+TRAPHANDLER(ALIGN, T_ALIGN)
+TRAPHANDLER_NOEC(MCHK, T_MCHK)
+TRAPHANDLER_NOEC(SIMDERR, T_SIMDERR)
+TRAPHANDLER_NOEC(SYSCALL, T_SYSCALL)
+TRAPHANDLER_NOEC(DEFAULT, T_DEFAULT)
+
+/*
+ * Lab 3: Your code here for _alltraps
+ */
+ .global _alltraps
+ _alltraps:
+ /* code below according to the guide */
+pushl %ds
+pushl %es
+pushal
+movw $GD_KD, %ax
+movw %ax, %ds
+movw %ax, %es
+pushl %esp
+call trap
+
+```
+
+#### 2. 完善`trap.c`中`trap_init()`函数
+
+这个函数初始化所有类型的中断描述符表，实现如下：
+
+```c
+void
+trap_init(void)
+{
+	extern struct Segdesc gdt[];
+
+	// LAB 3: Your code here.
+    // initialize idt
+	void DIVIDE();
+    SETGATE(idt[T_DIVIDE], 0, GD_KT, DIVIDE, 0);
+
+	void DEBUG();
+	SETGATE(idt[T_DEBUG], 0, GD_KT, DEBUG, 0);
+
+	void NMI();
+	SETGATE(idt[T_NMI], 0, GD_KT, NMI, 0);
+
+	void BRKPT();
+	SETGATE(idt[T_BRKPT], 1, GD_KT, BRKPT, 3);
+
+	void OFLOW();
+	SETGATE(idt[T_OFLOW], 0, GD_KT, OFLOW, 0);
+
+	void BOUND();
+	SETGATE(idt[T_BOUND], 0, GD_KT, BOUND, 0);
+
+	void ILLOP();
+	SETGATE(idt[T_ILLOP], 0, GD_KT, ILLOP, 0);
+
+	void DEVICE();
+	SETGATE(idt[T_DEVICE], 0, GD_KT, DEVICE, 0);
+
+	void DBLFLT();
+	SETGATE(idt[T_DBLFLT], 0, GD_KT, DBLFLT, 0);
+
+	void TSS();
+	SETGATE(idt[T_TSS], 0, GD_KT, TSS, 0);
+
+	void SEGNP();
+	SETGATE(idt[T_SEGNP], 0, GD_KT, SEGNP, 0);
+
+	void STACK();
+	SETGATE(idt[T_STACK], 0, GD_KT, STACK, 0);
+
+	void GPFLT();
+	SETGATE(idt[T_GPFLT], 0, GD_KT, GPFLT, 0);
+
+	void PGFLT();
+	SETGATE(idt[T_PGFLT], 0, GD_KT, PGFLT, 0);
+
+	void FPERR();
+	SETGATE(idt[T_FPERR], 0, GD_KT, FPERR, 0);
+
+	void ALIGN();
+	SETGATE(idt[T_ALIGN], 0, GD_KT, ALIGN, 0);
+
+	void MCHK();
+	SETGATE(idt[T_MCHK], 0, GD_KT, MCHK, 0);
+
+	void SIMDERR();
+	SETGATE(idt[T_SIMDERR], 0, GD_KT, SIMDERR, 0);
+
+	void SYSCALL();
+	SETGATE(idt[T_SYSCALL], 1, GD_KT, SYSCALL, 3);
+
+	void DEFAULT();
+	SETGATE(idt[T_DEFAULT], 0, GD_KT, DEFAULT, 0);
+
+
+	// Per-CPU setup 
+	trap_init_percpu();
+}
+
+```
+
+
 
 ## 实验收获

@@ -78,7 +78,7 @@ mon_backtrace(int argc, char **argv, struct Trapframe *tf)
         // print file line info 
         struct Eipdebuginfo info;
         int ret = debuginfo_eip(eip, &info);
-        cprintf("    at %s: %d: %.*s+%d\n",
+        cprintf("     at %s: %d: %.*s+%d\n",
                 info.eip_file, info.eip_line, info.eip_fn_namelen, info.eip_fn_name, eip - info.eip_fn_addr);
 
 		// there aren't any info?
