@@ -7,6 +7,10 @@
 1. 为`envs`分配存储空间并映射
 2. 实现`kern/env.c`的一些函数——用户环境初始化及运行
 3. 中断初始化
+4. 分发中断
+5. 系统调用
+6. 用户环境准备
+7. 缺页错误及内存保护
 
 ## 实验步骤
 
@@ -408,7 +412,7 @@ call trap
 
 ```
 
-#### 2. 完善`trap.c`中`trap_init()`函数
+#### 2. 实现`trap.c`中`trap_init()`函数
 
 这个函数初始化所有类型的中断描述符表，实现如下：
 
@@ -487,6 +491,230 @@ trap_init(void)
 
 ```
 
+#### 3. 回答问题
 
+问题1：由于不同的中断有不同的处理方式，在写`trapentry.S`的代码时就会发现处理某些中断时会压入错误码，某些则压入0，如果采用同一套handler处理，则会增加程序的复杂度，且无法判断中断的类型。
+
+问题2：当前的系统正处于用户态，特权级为3，而`int`指令特权级为0，用户态不能调用此指令，则会触发trap13。如果允许用户自行引发page fault 则操作系统容易被攻击。
+
+### 4. 分发中断
+
+讲义中要求我们实现`trap_dispatch()`函数以处理缺页错误、断点调试等中断，直接调用函数即可，实现如下：
+
+```c
+static void
+trap_dispatch(struct Trapframe *tf)
+{
+	// Handle processor exceptions.
+	// LAB 3: Your code here.
+	switch(tf->tf_trapno)
+	{
+		case T_PGFLT:
+		{
+			page_fault_handler(tf);
+			return;
+		}
+		case T_BRKPT:
+		{
+			monitor(tf);
+			return;
+		}
+		case T_DEBUG:
+		{
+			monitor(tf);
+			return;
+		}
+		
+	}
+	// Unexpected trap: The user process or the kernel has a bug.
+	print_trapframe(tf);
+	if (tf->tf_cs == GD_KT)
+		panic("unhandled trap in kernel");
+	else {
+		env_destroy(curenv);
+		return;
+	}
+}
+```
+
+### 5. 系统调用
+
+此处要实现在用户态下工作调用系统调用时，也能够正常运行，不发生中断。需要在前面的基础上实现`kern/syscall.c`中的`syscall()`函数，以及在`trap_dispatch()`中增加一种情况，实现如下
+
+```c
+// in 'kern/syscall.c'
+int32_t
+syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5)
+{
+	// Call the function corresponding to the 'syscallno' parameter.
+	// Return any appropriate return value.
+	// LAB 3: Your code here.
+
+	// panic("syscall not implemented");
+
+	// function called varies with the syscallno
+	switch (syscallno) 
+	{
+		case SYS_cputs:
+		{
+			sys_cputs((const char*)a1,(size_t)a2);
+			return 0;
+		}
+		case SYS_cgetc:
+		{
+			return sys_cgetc();
+		}
+		case SYS_env_destroy:
+		{
+			return sys_env_destroy((envid_t)a1);
+		}
+		case NSYSCALLS:
+		{
+			return 0;
+		}
+		default:
+			return -E_INVAL;
+	}
+}
+
+// in "kern/trap.c"
+static void
+trap_dispatch(struct Trapframe *tf)
+{
+	// Handle processor exceptions.
+	// LAB 3: Your code here.
+	switch(tf->tf_trapno)
+	{
+		case T_PGFLT:
+		{
+			page_fault_handler(tf);
+			return;
+		}
+		case T_BRKPT:
+		{
+			monitor(tf);
+			return;
+		}
+		case T_DEBUG:
+		{
+			monitor(tf);
+			return;
+		}
+		case T_SYSCALL:
+		{
+			struct PushRegs* regs = &(tf->tf_regs);
+			int32_t ret = syscall(regs->reg_eax,regs->reg_edx,regs->reg_ecx,regs->reg_ebx,regs->reg_edi,regs->reg_esi);
+			regs->reg_eax = (uint32_t)ret;
+			return;
+		}
+		
+	}
+
+```
+
+### 6. 用户环境准备
+
+上一个部分做完之后，运行时还是会报错，如下所示：
+
+![3-5](../images/3-5.png)
+
+这是因为在打印出"hello, world"之后，系统尝试获取`env-id`，但是失败了，添加下面的代码可以解决。
+
+```c
+// in "lib/libmain.c" function libmain()
+
+// set thisenv to point at our Env structure in envs[].
+	// LAB 3: Your code here.
+	thisenv = 0;
+	envid_t id = sys_getenvid();
+	thisenv = &envs[ENVX(id)];
+
+// in "kern/syscall.c" function syscall() a new situation
+
+case SYS_getenvid:
+{
+	return sys_getenvid();
+}
+
+```
+
+运行结果
+
+![3-6](../images/3-6.png)
+
+### 7. 缺页错误及内存保护
+
+这一部分要实现缺页错误的处理以及内存权限的检查（即内存保护）
+
+#### 1. 缺页处理
+
+实现很简单，按提示添加代码如下，检查`tf_cs`的低位与`0x03`（用户态标志）做与运算是否为0：
+
+```c
+// Handle kernel-mode page faults.
+
+	// LAB 3: Your code here.
+	// check low-bits of tf_cs
+	if((tf->tf_cs & 3) == 0)
+	{
+		panic("At page_fault_handler: page fault at %08x.\n",fault_va);
+	}
+```
+
+#### 2. 内存保护
+
+主要是实现`kern/pmap.c`中的`user_mem_check()`函数，按提示实现如下
+
+```c
+int
+user_mem_check(struct Env *env, const void *va, size_t len, int perm)
+{
+	// LAB 3: Your code here.
+	bool check = true;
+	pde_t* pgdir = env->env_pgdir;
+	uintptr_t address = (uintptr_t)va;
+	perm = perm | PTE_U | PTE_P;
+	pte_t* entry = NULL;
+	for(; address<(uintptr_t)(va+len);address+=PGSIZE)
+	{
+		// overflow
+		if(address>=ULIM)
+		{
+			check = false;
+			break;
+		}
+
+		// table entry doesn't exist
+		if(page_lookup(pgdir,(void*)address,&entry) == NULL)
+		{
+			check = false;
+			break;
+		}
+
+		// no permission
+		if(!(*entry & perm))
+		{
+			check = false;
+			break;
+		}
+	}
+
+	// fault happens and set user_mem_check_addr to 
+	if(!check)
+	{
+		user_mem_check_addr = (address == (uintptr_t)va ? address : ROUNDDOWN(address,PGSIZE));
+		return -E_FAULT;
+	}
+	return 0;
+}
+```
+
+然后在`kdebug.c`中调用这个函数，不再赘述。
+
+至此Lab 3结束，测评结果如下：
+
+![grade3](../images/grade3.png)
 
 ## 实验收获
+
+这个实验最主要的工作就是用户环境的初始化、中断处理、缺页处理、内存保护，其中，初始化的工作类似Lab 2，中断处理的工作实际上就是理论课上讲的目态与管态之间的切换以及现场的保存，它分为初始化、分发和系统调用3个步骤。，实验中用C语言代码实现了这个功能。让我加深了对这个知识点的理解，在代码实现中，核心是IDT表的设置。缺页处理主要是处理内存缺页的问题，内存保护则是阻止用户访问系统内存。

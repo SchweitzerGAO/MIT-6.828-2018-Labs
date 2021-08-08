@@ -297,12 +297,14 @@ page_init(void)
 		if(i == 0)
 		{
 			pages[i].pp_ref = 1;
+			pages[i].pp_link = NULL;
 		}
 
 		// requirement 3) and part of 4)
 		else if(i>=npages_basemem && i<npages_basemem+num_iohole+num_used)
 		{
 			pages[i].pp_ref = 1;
+			pages[i].pp_link = NULL;
 		}
 
 		// rest requirements
@@ -650,7 +652,41 @@ int
 user_mem_check(struct Env *env, const void *va, size_t len, int perm)
 {
 	// LAB 3: Your code here.
+	bool check = true;
+	pde_t* pgdir = env->env_pgdir;
+	uintptr_t address = (uintptr_t)va;
+	perm = perm | PTE_U | PTE_P;
+	pte_t* entry = NULL;
+	for(; address<(uintptr_t)(va+len);address+=PGSIZE)
+	{
+		// overflow
+		if(address>=ULIM)
+		{
+			check = false;
+			break;
+		}
 
+		// table entry doesn't exist
+		if(page_lookup(pgdir,(void*)address,&entry) == NULL)
+		{
+			check = false;
+			break;
+		}
+
+		// no permission
+		if(!(*entry & perm))
+		{
+			check = false;
+			break;
+		}
+	}
+
+	// fault happens and set user_mem_check_addr to 
+	if(!check)
+	{
+		user_mem_check_addr = (address == (uintptr_t)va ? address : ROUNDDOWN(address,PGSIZE));
+		return -E_FAULT;
+	}
 	return 0;
 }
 

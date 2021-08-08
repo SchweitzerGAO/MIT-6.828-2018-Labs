@@ -420,6 +420,10 @@ boot_map_region(kern_pgdir,KERNBASE,0xFFFFFFFF-KERNBASE,0,PTE_W);
 
 至此 Lab 2 结束
 
+执行`make grade`结果如下：
+
+![grade2](../images/grade2.png)
+
 ## 实验收获
 
 1. 体会物理地址向虚拟地址映射的过程
