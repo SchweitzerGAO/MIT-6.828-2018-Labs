@@ -10,7 +10,7 @@
 - [x] Tools & Lab Guide 
 - [x] Lab 1 Environment & Boot a PC
 - [x] Lab 2 Memory Management
-- [ ] Lab 3 User Environments
+- [x] Lab 3 User Environments
 - [ ] Lab 4 Preemptive Multitask
 - [ ] Lab 5 File System & Spawn & Shell
 
