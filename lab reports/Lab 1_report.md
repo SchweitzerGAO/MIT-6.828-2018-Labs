@@ -338,6 +338,40 @@ a.`%x`为16进制输出，57616转换为16进制是`e110`,
 
 b. `%s`为字符串输出，由于x86是小端模式，也就是从低位向高位读数据，故将变量`i`拆开，首先是`0x72='r'`,以及`0x6c='l'`,`0x64='d'`,`0x00=''`故输出是'rld'（如果是大端模式，就将`i`颠倒过来，即`i=0x726c6400`）
 
+#### Challenge! 彩色终端
+
+效果如下：
+
+![](../images/challenge1.png)
+
+代码如下：
+
+```c
+// in "kern/console.c" function cga_puts()
+// colorful terminal
+	if (!(c & ~0xFF))
+	{
+		char ch = c& 0xff;
+		if(ch>47 && ch<58)
+		{
+			// digits green
+			c |= 0x0200;
+		}
+		else if((ch>64 && ch<91) || (ch>96 && ch<123))
+		{
+			// letters white
+			c |= 0x0700;
+		}
+		else
+		{
+			// others red
+			c |= 0x0400;
+		}
+	}
+```
+
+
+
 3. 栈
 
 **初始化:**

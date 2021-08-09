@@ -163,8 +163,26 @@ static void
 cga_putc(int c)
 {
 	// if no attribute given, then use black on white
+	// colorful terminal
 	if (!(c & ~0xFF))
-		c |= 0x0700;
+	{
+		char ch = c& 0xff;
+		if(ch>47 && ch<58)
+		{
+			// digits green
+			c |= 0x0200;
+		}
+		else if((ch>64 && ch<91) || (ch>96 && ch<123))
+		{
+			// letters white
+			c |= 0x0700;
+		}
+		else
+		{
+			// others red
+			c |= 0x0400;
+		}
+	}
 
 	switch (c & 0xff) {
 	case '\b':

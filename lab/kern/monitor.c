@@ -60,34 +60,32 @@ int
 mon_backtrace(int argc, char **argv, struct Trapframe *tf)
 {
 	// Your code here.
-	typedef int (*this_func_type)(int, char **, struct Trapframe *);
+	// typedef int (*this_func_type)(int, char **, struct Trapframe *);
 	uint32_t ebp = read_ebp();
-	int *ebp_base_ptr = (int *)ebp;           
-	uint32_t eip = ebp_base_ptr[1];   
-	while (1) {
+	uint32_t *ebp_base_ptr = (uint32_t*)ebp;           
+	uint32_t eip = ebp_base_ptr[1];
+	cprintf("Stack backtrace:\n");
+	while (ebp != 0) {
         // print address and arguments info
-        cprintf("ebp %x, eip %x, args ", ebp, eip);
+        cprintf("\tebp %08x, eip %09x, args ", ebp, eip);
 
-        int *args = ebp_base_ptr + 2;
+        uint32_t *args = ebp_base_ptr + 2;
 
         for (int i = 0; i < 5; ++i) {
-            cprintf("%x ", args[i]);
+            cprintf("%08x ", args[i]);
         }
         cprintf("\n");
         
         // print file line info 
         struct Eipdebuginfo info;
-        int ret = debuginfo_eip(eip, &info);
-        cprintf("     at %s: %d: %.*s+%d\n",
-                info.eip_file, info.eip_line, info.eip_fn_namelen, info.eip_fn_name, eip - info.eip_fn_addr);
-
-		// there aren't any info?
-        if (ret) {
-            break;
-        }
+        if(debuginfo_eip(eip,&info) == 0)
+		{
+			uint32_t offset = eip-info.eip_fn_addr;
+			cprintf("\t\t%s:%d: %.*s+%d\n",info.eip_file,info.eip_line,info.eip_fn_namelen,info.eip_fn_name,offset);
+		}
         // update the values
-        ebp = *ebp_base_ptr;
-        ebp_base_ptr = (int*)ebp;
+        ebp = (uint32_t)*ebp_base_ptr;
+		ebp_base_ptr = (uint32_t*)ebp;
         eip = ebp_base_ptr[1];
 	}
 
