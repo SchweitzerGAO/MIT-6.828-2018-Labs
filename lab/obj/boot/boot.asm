@@ -284,7 +284,7 @@ outb(int port, uint8_t data)
     7d40:	83 c4 10             	add    $0x10,%esp
     7d43:	81 3d 00 00 01 00 7f 	cmpl   $0x464c457f,0x10000
     7d4a:	45 4c 46 
-    7d4d:	75 38                	jne    7d87 <bootmain+0x62>
+    7d4d:	75 51                	jne    7da0 <bootmain+0x7b>
 	ph = (struct Proghdr *) ((uint8_t *) ELFHDR + ELFHDR->e_phoff);
     7d4f:	a1 1c 00 01 00       	mov    0x1001c,%eax
 	eph = ph + ELFHDR->e_phnum;
@@ -294,32 +294,45 @@ outb(int port, uint8_t data)
 	eph = ph + ELFHDR->e_phnum;
     7d61:	c1 e6 05             	shl    $0x5,%esi
     7d64:	01 de                	add    %ebx,%esi
-	for (; ph < eph; ph++)
+	for (; ph < eph; ph++) {
     7d66:	39 f3                	cmp    %esi,%ebx
-    7d68:	73 17                	jae    7d81 <bootmain+0x5c>
+    7d68:	73 30                	jae    7d9a <bootmain+0x75>
 		readseg(ph->p_pa, ph->p_memsz, ph->p_offset);
     7d6a:	50                   	push   %eax
-	for (; ph < eph; ph++)
-    7d6b:	83 c3 20             	add    $0x20,%ebx
-		readseg(ph->p_pa, ph->p_memsz, ph->p_offset);
-    7d6e:	ff 73 e4             	pushl  -0x1c(%ebx)
-    7d71:	ff 73 f4             	pushl  -0xc(%ebx)
-    7d74:	ff 73 ec             	pushl  -0x14(%ebx)
-    7d77:	e8 66 ff ff ff       	call   7ce2 <readseg>
-	for (; ph < eph; ph++)
-    7d7c:	83 c4 10             	add    $0x10,%esp
-    7d7f:	eb e5                	jmp    7d66 <bootmain+0x41>
+    7d6b:	ff 73 04             	pushl  0x4(%ebx)
+    7d6e:	ff 73 14             	pushl  0x14(%ebx)
+    7d71:	ff 73 0c             	pushl  0xc(%ebx)
+    7d74:	e8 69 ff ff ff       	call   7ce2 <readseg>
+		for (i = 0; i < ph->p_memsz - ph->p_filesz; i++) {
+    7d79:	83 c4 10             	add    $0x10,%esp
+    7d7c:	31 d2                	xor    %edx,%edx
+    7d7e:	8b 43 10             	mov    0x10(%ebx),%eax
+    7d81:	8b 4b 14             	mov    0x14(%ebx),%ecx
+    7d84:	29 c1                	sub    %eax,%ecx
+    7d86:	39 d1                	cmp    %edx,%ecx
+    7d88:	76 0b                	jbe    7d95 <bootmain+0x70>
+			*((char *) ph->p_pa + ph->p_filesz + i) = 0;
+    7d8a:	01 d0                	add    %edx,%eax
+    7d8c:	03 43 0c             	add    0xc(%ebx),%eax
+		for (i = 0; i < ph->p_memsz - ph->p_filesz; i++) {
+    7d8f:	42                   	inc    %edx
+			*((char *) ph->p_pa + ph->p_filesz + i) = 0;
+    7d90:	c6 00 00             	movb   $0x0,(%eax)
+    7d93:	eb e9                	jmp    7d7e <bootmain+0x59>
+	for (; ph < eph; ph++) {
+    7d95:	83 c3 20             	add    $0x20,%ebx
+    7d98:	eb cc                	jmp    7d66 <bootmain+0x41>
 	((void (*)(void)) (ELFHDR->e_entry))();
-    7d81:	ff 15 18 00 01 00    	call   *0x10018
+    7d9a:	ff 15 18 00 01 00    	call   *0x10018
 }
 
 static inline void
 outw(int port, uint16_t data)
 {
 	asm volatile("outw %0,%w1" : : "a" (data), "d" (port));
-    7d87:	ba 00 8a 00 00       	mov    $0x8a00,%edx
-    7d8c:	b8 00 8a ff ff       	mov    $0xffff8a00,%eax
-    7d91:	66 ef                	out    %ax,(%dx)
-    7d93:	b8 00 8e ff ff       	mov    $0xffff8e00,%eax
-    7d98:	66 ef                	out    %ax,(%dx)
-    7d9a:	eb fe                	jmp    7d9a <bootmain+0x75>
+    7da0:	ba 00 8a 00 00       	mov    $0x8a00,%edx
+    7da5:	b8 00 8a ff ff       	mov    $0xffff8a00,%eax
+    7daa:	66 ef                	out    %ax,(%dx)
+    7dac:	b8 00 8e ff ff       	mov    $0xffff8e00,%eax
+    7db1:	66 ef                	out    %ax,(%dx)
+    7db3:	eb fe                	jmp    7db3 <bootmain+0x8e>
