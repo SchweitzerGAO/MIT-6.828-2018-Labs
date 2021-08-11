@@ -8,7 +8,7 @@
 2. 轮转法调度
 3. 创建环境的系统调用
 4. 用户级缺页错误处理
-5. 实现Copy-on-write-fork
+5. 实现"Copy-on-write-fork"
 6. 时钟中断和抢占
 7. 进程间通信（IPC）
 
@@ -463,7 +463,329 @@ sys_page_unmap(envid_t envid, void *va)
 }
 ```
 
+### 4. 用户级缺页错误处理
+
+这一部分实现用户级的缺页错误的处理。
+
+#### 1. 系统调用函数`sys_env_set_pgfault_upcall()`
+
+这个函数将envid对应的用户环境中的env_pgfault_upcall属性设定为一个函数，并进行边界条件判断：
+
+```c
+static int
+sys_env_set_pgfault_upcall(envid_t envid, void *func)
+{
+	// LAB 4: Your code here.
+	// panic("sys_env_set_pgfault_upcall not implemented");
+	struct Env* e = NULL;
+	int ret = envid2env(envid,&e,true);
+	if(ret < 0)
+	{
+		return ret;
+	}
+	e->env_pgfault_upcall = func;
+	return 0;
+}
+```
+
+#### 2. 完善`page_fault_handler()`，满足用户级处理
+
+按照讲义以及hint,完善的代码如下：
+
+```c
+// LAB 4: Your code here.
+	// no self-defined pgfault_upcall function
+	if(curenv->env_pgfault_upcall == NULL)
+	{
+		// Destroy the environment that caused the fault.
+		cprintf("[%08x] user fault va %08x ip %08x\n",
+		curenv->env_id, fault_va, tf->tf_eip);
+		print_trapframe(tf);
+		env_destroy(curenv);
+	}
+	
+	struct UTrapframe* utf;
+	uintptr_t addr;
+	// determine utf address
+	size_t size = sizeof(struct UTrapframe)+ sizeof(uint32_t);
+	if (tf->tf_esp >= UXSTACKTOP-PGSIZE && tf->tf_esp < UXSTACKTOP)
+	{
+		addr = tf->tf_esp - size;
+	}
+	else
+	{
+		addr = UXSTACKTOP - size;
+	}
+	// check the permission
+	user_mem_assert(curenv,(void*)addr,size,PTE_P|PTE_W|PTE_U);
+
+	// set the attributes
+	utf = (struct UTrapframe*)addr;
+	utf->utf_fault_va = fault_va;
+	utf->utf_eflags = tf->tf_eflags;
+	utf->utf_err = tf->tf_err;
+	utf->utf_esp = tf->tf_esp;
+	utf->utf_eip = tf->tf_eip;
+	utf->utf_regs = tf->tf_regs;
+	// change the value in eip field of tf
+	tf->tf_eip = (uintptr_t)curenv->env_pgfault_upcall;
+	tf->tf_esp = (uintptr_t)utf;
+	env_run(curenv);
+```
+
+#### 3. 用户模式缺页错误入口设置
+
+这里要补充一些汇编代码和`set_pgfault_handler()`函数，实现如下：
+
+```assembly
+// in "lib/pfentry.S"
+// LAB 4: Your code here.
+	movl 48(%esp), %edi
+	subl $4, %edi
+	movl %edi, 48(%esp)
+	movl 40(%esp), %esi
+	movl %esi, (%edi)
+	// Restore the trap-time registers.  After you do this, you
+	// can no longer modify any general-purpose registers.
+	// LAB 4: Your code here.
+	addl $8, %esp
+	popal
+	// Restore eflags from the stack.  After you do this, you can
+	// no longer use arithmetic operations or anything else that
+	// modifies eflags.
+	// LAB 4: Your code here.
+	addl $4, %esp
+	popfl
+	// Switch back to the adjusted trap-time stack.
+	// LAB 4: Your code here.
+	popl %esp
+	// Return to re-execute the instruction that faulted.
+	// LAB 4: Your code here.
+	ret
+```
+
+```c
+// in "lib/pgfault.c"
+void
+set_pgfault_handler(void (*handler)(struct UTrapframe *utf))
+{
+	int r;
+
+	if (_pgfault_handler == 0) {
+		// First time through!
+		// LAB 4: Your code here.
+		// panic("set_pgfault_handler not implemented");
+		envid_t id = sys_getenvid();
+		r = sys_page_alloc(id,(void*)(UXSTACKTOP-PGSIZE),PTE_P|PTE_W|PTE_U);
+		if(r < 0)
+		{
+			panic("At set_pgfault_handler:allocating at %x:%e\n",UXSTACKTOP-PGSIZE,r);
+		}
+		r = sys_env_set_pgfault_upcall(id,_pgfault_upcall);
+		if(r < 0)
+		{
+			panic("At set_pgfault_handler:%e\n",r);
+		}
+		
+
+	}
+
+	// Save handler pointer for assembly to call.
+	_pgfault_handler = handler;
+}
+
+```
+
+#### 4. 测试
+
+按照讲义要求，运行代码进行测试，结果如下：
+
+![4-3](../images/4-3.png)
+
+![4-4](../images/4-4.png)
+
+![](../images/4-5.png)
+
+![](../images/4-6.png)
+
+
+
+### 5. 实现"Copy-on-Write Fork"
+
+#### 1. `pgfault()`函数
+
+这个函数是对于用户处理缺页错误，同时处理COW的情况，实现如下：
+
+```c
+static void
+pgfault(struct UTrapframe *utf)
+{
+	void *addr = (void *) utf->utf_fault_va;
+	uint32_t err = utf->utf_err;
+	int r;
+
+	// Check that the faulting access was (1) a write, and (2) to a
+	// copy-on-write page.  If not, panic.
+	// Hint:
+	//   Use the read-only page table mappings at uvpt
+	//   (see <inc/memlayout.h>).
+
+	// LAB 4: Your code here.
+		addr = ROUNDDOWN(addr,PGSIZE);
+		if(!(err & FEC_WR))
+		{
+			panic("At pgfault:Page fault not write fault");
+		}
+		if(!(uvpt[(uintptr_t)PGNUM(addr)]&PTE_COW))
+		{
+			panic("At pgfault:Page fault not Copy-on-write");
+		}
+	// Allocate a new page, map it at a temporary location (PFTEMP),
+	// copy the data from the old page to the new page, then move the new
+	// page to the old page's address.
+	// Hint:
+	//   You should make three system calls.
+
+	// LAB 4: Your code here.
+	// panic("pgfault not implemented");
+	int perm = PTE_P|PTE_W|PTE_U;
+	//system call #1 get the id
+	envid_t id = sys_getenvid();
+	// #2 allocate page 
+	r = sys_page_alloc(id,(void*)PFTEMP,perm);
+	if(r < 0)
+	{
+		panic("At pagefault page_alloc:%e",r);
+	}
+	// move the new to the old
+	memcpy((void*)PFTEMP,(void*)addr,PGSIZE);
+	// #3 map the page to itself but different address
+	r = sys_page_map(id,(void*)PFTEMP,id,addr,perm);
+	if(r < 0)
+	{
+		panic("At pagefault page_map:%e",r);
+	}
+	// #4 unmap the temporary page fault
+	r = sys_page_unmap(id,(void*)PFTEMP);
+	if(r < 0)
+	{
+		panic("At pagefault page_unmap:%e",r);
+	}
+
+}
+```
+
+#### 2. `duppage()`函数
+
+这个函数将`pn`所指示的虚拟页映射到`envid`所指示的env上，实现如下，注意这里要再次声明PTE_COW的权限。
+
+```c
+static int
+duppage(envid_t envid, unsigned pn)
+{
+	int r;
+
+	// LAB 4: Your code here.
+	// panic("duppage not implemented");
+	envid_t id = sys_getenvid();
+	uintptr_t va = pn*PGSIZE;
+	int perm = PTE_P|PTE_U;
+	if((uvpt[pn] & PTE_W) || (uvpt[pn] & PTE_COW))
+	{
+		// mappint to envid
+		r = sys_page_map(id,(void*)va,envid,(void*)va,perm|PTE_COW);
+		if(r < 0)
+		{
+			return r;
+		}
+		// re-claim the COW permission of current env
+		r = sys_page_map(id,(void*)va,id,(void*)va,perm|PTE_COW);
+		if(r < 0)
+		{
+			return r;
+		}
+	}
+	// without PTE_COW permission
+	else
+	{
+		r = sys_page_map(id,(void*)va,envid,(void*)va,perm);
+		if(r < 0)
+		{
+			return r;
+		}
+	}
+	return 0;
+}
+```
+
+#### 3. `fork()`函数
+
+这个函数与Linux提供的`fork()`函数功能相近，都是父进程创建子进程，实现如下：
+
+```c
+envid_t
+fork(void)
+{
+	// LAB 4: Your code here.
+	// panic("fork not implemented");
+	int ret;
+	set_pgfault_handler(pgfault);
+	envid_t child_id = sys_exofork();
+	// unsuccessful fork
+	if(child_id < 0)
+	{
+		return child_id;
+	}
+	// returns child function
+	if(child_id == 0)
+	{
+		thisenv = &envs[ENVX(sys_getenvid())];
+		return 0;
+	}
+	// copy and map
+	for(uintptr_t i = 0;i<USTACKTOP;i+=PGSIZE)
+	{
+		uintptr_t pn = PGNUM(i);
+		// not fully understand
+		if(!(uvpd[i>>PDXSHIFT] & PTE_P) || !(uvpt[pn] & PTE_P))
+		{
+			continue;
+		}
+		ret = duppage(child_id,(unsigned)pn);
+		if(ret < 0)
+		{
+			return ret;
+		}
+		
+	}
+	// allocate new page to the user exception stack of child process
+	int perm = PTE_P|PTE_W|PTE_U;
+	ret = sys_page_alloc(child_id,(void*)(UXSTACKTOP-PGSIZE),perm);
+	if(ret < 0)
+	{
+		return ret;
+	}
+	// set the page fault entrypoint of child process
+	extern void _pgfault_upcall(void);
+	ret = sys_env_set_pgfault_upcall(child_id,_pgfault_upcall);
+	if(ret < 0)
+	{
+		return ret;
+	}
+	// set child process to status RUNNABLE
+	ret = sys_env_set_status(child_id,ENV_RUNNABLE);
+	if(ret < 0)
+	{
+		return ret;
+	}
+	return child_id;
+
+}
+```
+
 
 
 ## 实验收获
+
+
 

@@ -398,11 +398,42 @@ page_fault_handler(struct Trapframe *tf)
 	//   (the 'tf' variable points at 'curenv->env_tf').
 
 	// LAB 4: Your code here.
-
-	// Destroy the environment that caused the fault.
-	cprintf("[%08x] user fault va %08x ip %08x\n",
+	// no self-defined pgfault_upcall function
+	if(curenv->env_pgfault_upcall == NULL)
+	{
+		// Destroy the environment that caused the fault.
+		cprintf("[%08x] user fault va %08x ip %08x\n",
 		curenv->env_id, fault_va, tf->tf_eip);
-	print_trapframe(tf);
-	env_destroy(curenv);
+		print_trapframe(tf);
+		env_destroy(curenv);
+	}
+	
+	struct UTrapframe* utf;
+	uintptr_t addr;
+	// determine utf address
+	size_t size = sizeof(struct UTrapframe)+ sizeof(uint32_t);
+	if (tf->tf_esp >= UXSTACKTOP-PGSIZE && tf->tf_esp < UXSTACKTOP)
+	{
+		addr = tf->tf_esp - size;
+	}
+	else
+	{
+		addr = UXSTACKTOP - size;
+	}
+	// check the permission
+	user_mem_assert(curenv,(void*)addr,size,PTE_P|PTE_W|PTE_U);
+
+	// set the attributes
+	utf = (struct UTrapframe*)addr;
+	utf->utf_fault_va = fault_va;
+	utf->utf_eflags = tf->tf_eflags;
+	utf->utf_err = tf->tf_err;
+	utf->utf_esp = tf->tf_esp;
+	utf->utf_eip = tf->tf_eip;
+	utf->utf_regs = tf->tf_regs;
+	// change the value in eip field of tf
+	tf->tf_eip = (uintptr_t)curenv->env_pgfault_upcall;
+	tf->tf_esp = (uintptr_t)utf;
+	env_run(curenv);
 }
 
