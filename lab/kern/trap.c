@@ -83,7 +83,7 @@ trap_init(void)
 	SETGATE(idt[T_NMI], 0, GD_KT, NMI, 0);
 
 	void BRKPT();
-	SETGATE(idt[T_BRKPT], 1, GD_KT, BRKPT, 3);
+	SETGATE(idt[T_BRKPT], 0, GD_KT, BRKPT, 3);
 
 	void OFLOW();
 	SETGATE(idt[T_OFLOW], 0, GD_KT, OFLOW, 0);
@@ -128,11 +128,61 @@ trap_init(void)
 	SETGATE(idt[T_SIMDERR], 0, GD_KT, SIMDERR, 0);
 
 	void SYSCALL();
-	SETGATE(idt[T_SYSCALL], 1, GD_KT, SYSCALL, 3);
+	SETGATE(idt[T_SYSCALL], 0, GD_KT, SYSCALL, 3);
 
 	void DEFAULT();
 	SETGATE(idt[T_DEFAULT], 0, GD_KT, DEFAULT, 0);
+	
+	void IRQsHandler0();
+	SETGATE(idt[IRQ_OFFSET+IRQ_TIMER],0,GD_KT,IRQsHandler0,0);
 
+	void IRQsHandler1();
+	SETGATE(idt[IRQ_OFFSET+IRQ_KBD],0,GD_KT,IRQsHandler1,0);
+
+	void IRQsHandler2();
+	SETGATE(idt[IRQ_OFFSET+IRQ_SLAVE],0,GD_KT,IRQsHandler2,0);
+
+	void IRQsHandler3();
+	SETGATE(idt[IRQ_OFFSET+3],0,GD_KT,IRQsHandler1,0);
+
+	void IRQsHandler4();
+	SETGATE(idt[IRQ_OFFSET+IRQ_SERIAL],0,GD_KT,IRQsHandler4,0);
+
+	void IRQsHandler5();
+	SETGATE(idt[IRQ_OFFSET+5],0,GD_KT,IRQsHandler5,0);
+
+	void IRQsHandler6();
+	SETGATE(idt[IRQ_OFFSET+6],0,GD_KT,IRQsHandler6,0);
+
+	void IRQsHandler7();
+	SETGATE(idt[IRQ_OFFSET+IRQ_SPURIOUS],0,GD_KT,IRQsHandler7,0);
+
+	void IRQsHandler8();
+	SETGATE(idt[IRQ_OFFSET+8],0,GD_KT,IRQsHandler8,0);
+
+	void IRQsHandler9();
+	SETGATE(idt[IRQ_OFFSET+9],0,GD_KT,IRQsHandler9,0);
+
+	void IRQsHandler10();
+	SETGATE(idt[IRQ_OFFSET+10],0,GD_KT,IRQsHandler10,0);
+
+	void IRQsHandler11();
+	SETGATE(idt[IRQ_OFFSET+11],0,GD_KT,IRQsHandler11,0);
+
+	void IRQsHandler12();
+	SETGATE(idt[IRQ_OFFSET+12],0,GD_KT,IRQsHandler12,0);
+
+	void IRQsHandler13();
+	SETGATE(idt[IRQ_OFFSET+13],0,GD_KT,IRQsHandler13,0);
+
+	void IRQsHandler14();
+	SETGATE(idt[IRQ_OFFSET+IRQ_IDE],0,GD_KT,IRQsHandler14,0);
+
+	void IRQsHandler15();
+	SETGATE(idt[IRQ_OFFSET+15],0,GD_KT,IRQsHandler15,0);
+
+	// void IRQsHandler19();
+	// SETGATE(idt[IRQ_OFFSET+IRQ_ERROR],0,GD_KT,IRQsHandler19,0);
 	// Per-CPU setup 
 	trap_init_percpu();
 }
@@ -275,6 +325,12 @@ trap_dispatch(struct Trapframe *tf)
 			regs->reg_eax = (uint32_t)ret;
 			return;
 		}
+		case (IRQ_OFFSET+IRQ_TIMER):
+		{
+			lapic_eoi();
+			sched_yield();
+			return;
+		}
 		
 	}
 	// Unexpected trap: The user process or the kernel has a bug.
@@ -299,7 +355,7 @@ trap(struct Trapframe *tf)
 	if (panicstr)
 		asm volatile("hlt");
 
-	// Re-acqurie the big kernel lock if we were halted in
+	// Re-acquire the big kernel lock if we were halted in
 	// sched_yield()
 	if (xchg(&thiscpu->cpu_status, CPU_STARTED) == CPU_HALTED)
 		lock_kernel();

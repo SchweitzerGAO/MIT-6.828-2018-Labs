@@ -783,9 +783,199 @@ fork(void)
 }
 ```
 
+### 6. 时钟中断和抢占
 
+#### 1. IRQ注册
+
+IRQ即中断请求（Interrupt ReQuest），首先要在`trapentry.S`和`trap.c`中注册，这部分的代码与Lab 3中断、错误等注册的代码相似，不再赘述，要注意只需要注册0-15号IRQ的处理函数即可。
+
+同时，要将`env_alloc()`中的以及`sched_halt()`中的代码稍作修改，按照讲义的提示做即可。
+
+#### 2. 处理时钟中断
+
+按讲义，只需要将`trap_dispatch()`函数添加一个新的分支即可。当时钟中断发生时，注册中断并运行下一个可以运行的env。添加的代码如下：
+
+```c
+case (IRQ_OFFSET+IRQ_TIMER):
+		{
+			lapic_eoi();
+			sched_yield();
+			return;
+		}
+```
+
+#### 3. 实现IPC
+
+**系统调用`sys_ipc_try_send()`**
+
+这是进程发送信息的主函数，实现如下：
+
+```c
+static int
+sys_ipc_try_send(envid_t envid, uint32_t value, void *srcva, unsigned perm)
+{
+	// LAB 4: Your code here.
+	// panic("sys_ipc_try_send not implemented");
+	int ret;
+	struct Env* dst = NULL;
+	int perm_needed = PTE_U|PTE_P;
+	//	-E_BAD_ENV if environment envid doesn't currently exist.
+	//		(No need to check permissions.)
+	if((ret = envid2env(envid,&dst,false)) < 0)
+	{
+		return ret;
+	}
+	//	-E_IPC_NOT_RECV if envid is not currently blocked in sys_ipc_recv,
+	//		or another environment managed to send first.
+	if(!dst->env_ipc_recving)
+	{
+		return -E_IPC_NOT_RECV;
+	}
+	if((uintptr_t)srcva < UTOP)
+	{
+		// -E_INVAL if srcva < UTOP but srcva is not page-aligned.
+		if((uintptr_t)srcva % PGSIZE)
+		{
+			return -E_INVAL;
+		}
+
+		// -E_INVAL if srcva < UTOP and perm is inappropriate
+		if(((perm_needed & perm) != perm_needed) || (perm & (~PTE_SYSCALL)))
+		{
+			return -E_INVAL;
+		}
+
+		//	-E_INVAL if srcva < UTOP but srcva is not mapped in the caller's
+		//		address space.
+		pte_t* pte = NULL;
+		struct PageInfo* pg = page_lookup(curenv->env_pgdir,srcva,&pte);
+		if(!pg)
+		{
+			return -E_INVAL;
+		}
+
+		//	-E_INVAL if (perm & PTE_W), but srcva is read-only in the
+		//		current environment's address space.
+		if((perm & PTE_W) && !(*pte & PTE_W))
+		{
+			return -E_INVAL;
+		}
+
+		// -E_NO_MEM if there's not enough memory to map srcva in envid's
+		//		address space.
+		if((uintptr_t)dst->env_ipc_dstva<UTOP)
+		{
+			if((ret = page_insert(dst->env_pgdir,pg,dst->env_ipc_dstva,perm)) < 0)
+			{
+				return ret;
+			}
+		}
+		else
+		{
+			perm = 0;
+		}
+	}
+	// succeeded in sending
+	perm = 0;
+	dst->env_ipc_recving = 0;
+	dst->env_ipc_from = curenv->env_id;
+	dst->env_ipc_value = value;
+	dst->env_ipc_perm = perm;
+	dst->env_status = ENV_RUNNABLE;
+	dst->env_tf.tf_regs.reg_eax = 0;
+	return 0;
+}
+```
+
+**系统调用`sys_ipc_recv()`**
+
+这是接收信息的主函数，实现如下：
+
+```c
+static int
+sys_ipc_recv(void *dstva)
+{
+	// LAB 4: Your code here.
+	// panic("sys_ipc_recv not implemented");
+	if((uintptr_t)dstva<UTOP && (uintptr_t)dstva%PGSIZE)
+	{
+		return -E_INVAL;
+	}
+	curenv->env_ipc_recving = 1;
+	curenv->env_ipc_dstva = dstva;
+	curenv->env_status = ENV_NOT_RUNNABLE;
+	sys_yield();
+	return 0;
+}
+```
+
+**`ipc_send()`函数**
+
+这个函数在库中，对系统调用进行封装，它不断地尝试发送信息，只要有一次不成功就将CPU交给下一个可执行的进程。实现如下：
+
+```c
+void
+ipc_send(envid_t to_env, uint32_t val, void *pg, int perm)
+{
+	// LAB 4: Your code here.
+	// panic("ipc_send not implemented");
+	if(!pg)
+	{
+		pg = (void*)UTOP;
+	}
+	int ret;
+
+	// try to send until sent successfully
+	while((ret = sys_ipc_try_send(to_env,val,pg,perm)) < 0)
+	{
+		if(ret != -E_IPC_NOT_RECV)
+		{
+			panic("At ipc_send:%e",ret);
+		}
+		sys_yield();
+	}
+}
+```
+
+**`ipc_recv()`函数**
+
+这个函数同样对系统调用进行封装，实现如下：
+
+```c
+int32_t
+ipc_recv(envid_t *from_env_store, void *pg, int *perm_store)
+{
+	// LAB 4: Your code here.
+	// panic("ipc_recv not implemented");
+	if(!pg)
+	{
+		pg = (void*)UTOP;
+	}
+	int ret = sys_ipc_recv(pg);
+	if(ret < 0)
+	{
+		if(from_env_store)
+		{
+			*from_env_store = 0;
+		}
+		if(perm_store)
+		{
+			*perm_store = 0;
+		}
+		return ret;
+	}
+	if(from_env_store)
+	{
+		*from_env_store = thisenv->env_ipc_from;
+	}
+	if(perm_store)
+	{
+		*perm_store = thisenv->env_ipc_perm;
+	}
+	return thisenv->env_ipc_value;
+}
+```
 
 ## 实验收获
 
-
-
+这一部分实际上就是我们理论课上进程管理的实验，结构体`Env`的含义我最开始以为是Environment，做完实验之后才发现这个东西就是进程（毕竟IPC就是`Env`结构体之间数据的传输）。还有课堂上没有细讲的R&R和IPC,这个实验又有一定的补充，让我初步体会到这些理论在实现时的过程。

@@ -11,8 +11,9 @@
 - [x] Lab 1 Environment & Boot a PC
 - [x] Lab 2 Memory Management
 - [x] Lab 3 User Environments
-- [ ] Lab 4 Preemptive Multitask
+- [x] Lab 4 Preemptive Multitask
 - [ ] Lab 5 File System & Spawn & Shell
+- [ ] (Optional) Lab 6 Network Driver
 
 ## Lab 1
 
@@ -37,3 +38,13 @@
 5. 系统调用
 6. 用户环境准备
 7. 缺页错误及内存保护
+
+## Lab 4
+
+1. 多处理器支持
+2. 轮转法调度
+3. 创建环境的系统调用
+4. 用户级缺页错误处理
+5. 实现"Copy-on-write-fork"
+6. 时钟中断和抢占
+7. 进程间通信（IPC）
