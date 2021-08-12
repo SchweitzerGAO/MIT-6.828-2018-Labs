@@ -976,6 +976,10 @@ ipc_recv(envid_t *from_env_store, void *pg, int *perm_store)
 }
 ```
 
+最终测试结果：
+
+![](../images/grade4.png)
+
 ## 实验收获
 
 这一部分实际上就是我们理论课上进程管理的实验，结构体`Env`的含义我最开始以为是Environment，做完实验之后才发现这个东西就是进程（毕竟IPC就是`Env`结构体之间数据的传输）。还有课堂上没有细讲的R&R和IPC,这个实验又有一定的补充，让我初步体会到这些理论在实现时的过程。
