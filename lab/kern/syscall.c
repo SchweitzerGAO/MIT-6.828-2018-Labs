@@ -54,10 +54,6 @@ sys_env_destroy(envid_t envid)
 
 	if ((r = envid2env(envid, &e, 1)) < 0)
 		return r;
-	if (e == curenv)
-		cprintf("[%08x] exiting gracefully\n", curenv->env_id);
-	else
-		cprintf("[%08x] destroying %08x\n", curenv->env_id, e->env_id);
 	env_destroy(e);
 	return 0;
 }
@@ -128,6 +124,35 @@ sys_env_set_status(envid_t envid, int status)
 	}
 	e->env_status = status;
 	return 0;
+}
+// Set envid's trap frame to 'tf'.
+// tf is modified to make sure that user environments always run at code
+// protection level 3 (CPL 3), interrupts enabled, and IOPL of 0.
+//
+// Returns 0 on success, < 0 on error.  Errors are:
+//	-E_BAD_ENV if environment envid doesn't currently exist,
+//		or the caller doesn't have permission to change envid.
+static int
+sys_env_set_trapframe(envid_t envid, struct Trapframe *tf)
+{
+	// LAB 5: Your code here.
+	// Remember to check whether the user has supplied us with a good
+	// address!
+	// panic("sys_env_set_trapframe not implemented");
+	// check the user access to memory
+	user_mem_assert(curenv,(const void*)tf,sizeof(struct Trapframe),PTE_U|PTE_P);
+	struct Env* e = NULL;
+	if(envid2env(envid,&e,1) < 0)
+	{
+		return -E_BAD_ENV;
+	}
+	// set the trapframe
+	e->env_tf = *tf;
+	e->env_tf.tf_eflags |= FL_IF;
+	tf->tf_eflags &= ~FL_IOPL_MASK;
+	e->env_tf.tf_cs |= 3;
+	return 0;
+
 }
 
 // Set the page fault upcall for 'envid' by modifying the corresponding struct
@@ -277,7 +302,6 @@ sys_page_map(envid_t srcenvid, void *srcva,
 	{
 		return -E_INVAL;
 	}
-
 	// -E_INVAL if (perm & PTE_W), but srcva is read-only in srcenvid's
     //		address space.
 	if((!((*pte) & PTE_W)) && (perm & PTE_W))
@@ -380,7 +404,11 @@ sys_ipc_try_send(envid_t envid, uint32_t value, void *srcva, unsigned perm)
 	{
 		return -E_IPC_NOT_RECV;
 	}
-	if((uintptr_t)srcva < UTOP)
+	if((uintptr_t)srcva >= UTOP)
+	{
+		perm = 0;
+	}
+	if(perm)
 	{
 		// -E_INVAL if srcva < UTOP but srcva is not page-aligned.
 		if((uintptr_t)srcva % PGSIZE)
@@ -412,23 +440,16 @@ sys_ipc_try_send(envid_t envid, uint32_t value, void *srcva, unsigned perm)
 
 		// -E_NO_MEM if there's not enough memory to map srcva in envid's
 		//		address space.
-		if((uintptr_t)dst->env_ipc_dstva<UTOP)
+		if((ret = page_insert(dst->env_pgdir,pg,dst->env_ipc_dstva,perm)) < 0)
 		{
-			if((ret = page_insert(dst->env_pgdir,pg,dst->env_ipc_dstva,perm)) < 0)
-			{
-				return ret;
-			}
+			return ret;
 		}
-		else
-		{
-			perm = 0;
-		}
+		dst->env_ipc_perm = perm;
 	}
-	perm = 0;
-	dst->env_ipc_recving = 0;
+	// succeeded in sending
 	dst->env_ipc_from = curenv->env_id;
 	dst->env_ipc_value = value;
-	dst->env_ipc_perm = perm;
+	dst->env_ipc_recving = 0;
 	dst->env_status = ENV_RUNNABLE;
 	dst->env_tf.tf_regs.reg_eax = 0;
 	return 0;
@@ -531,6 +552,10 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 		case SYS_ipc_recv:
 		{
 			return sys_ipc_recv((void*)a1);
+		}
+		case SYS_env_set_trapframe:
+		{
+			return sys_env_set_trapframe((envid_t)a1,(struct Trapframe*)a2);
 		}
 		default:
 			return -E_INVAL;

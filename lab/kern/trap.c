@@ -140,10 +140,10 @@ trap_init(void)
 	SETGATE(idt[IRQ_OFFSET+IRQ_KBD],0,GD_KT,IRQsHandler1,0);
 
 	void IRQsHandler2();
-	SETGATE(idt[IRQ_OFFSET+IRQ_SLAVE],0,GD_KT,IRQsHandler2,0);
+	SETGATE(idt[IRQ_OFFSET+2],0,GD_KT,IRQsHandler2,0);
 
 	void IRQsHandler3();
-	SETGATE(idt[IRQ_OFFSET+3],0,GD_KT,IRQsHandler1,0);
+	SETGATE(idt[IRQ_OFFSET+3],0,GD_KT,IRQsHandler3,0);
 
 	void IRQsHandler4();
 	SETGATE(idt[IRQ_OFFSET+IRQ_SERIAL],0,GD_KT,IRQsHandler4,0);
@@ -301,6 +301,9 @@ trap_dispatch(struct Trapframe *tf)
 	// interrupt using lapic_eoi() before calling the scheduler!
 	// LAB 4: Your code here.
 
+	// Handle keyboard and serial interrupts.
+	// LAB 5: Your code here.
+
 	switch(tf->tf_trapno)
 	{
 		case T_PGFLT:
@@ -329,6 +332,16 @@ trap_dispatch(struct Trapframe *tf)
 		{
 			lapic_eoi();
 			sched_yield();
+			return;
+		}
+		case (IRQ_OFFSET+IRQ_KBD):
+		{
+			kbd_intr();
+			return;
+		}
+		case (IRQ_OFFSET+IRQ_SERIAL):
+		{
+			serial_intr();
 			return;
 		}
 		

@@ -12,7 +12,7 @@
 - [x] Lab 2 Memory Management
 - [x] Lab 3 User Environments
 - [x] Lab 4 Preemptive Multitask
-- [ ] Lab 5 File System & Spawn & Shell
+- [x] Lab 5 File System & Spawn & Shell
 - [ ] (Optional) Lab 6 Network Driver
 
 ## Lab 1
@@ -48,3 +48,14 @@
 5. 实现"Copy-on-write-fork"
 6. 时钟中断和抢占
 7. 进程间通信（IPC）
+
+## Lab 5
+
+1. 开启硬盘访问
+2. 块Cache
+3. 块位图
+4. 文件操作
+5. 文件系统接口
+6. 进程的spawn操作
+7. 键盘接口
+8. Shell

@@ -104,6 +104,14 @@ duppage(envid_t envid, unsigned pn)
 			return r;
 		}
 	}
+	else if(uvpt[pn] & PTE_SHARE)
+	{
+		r = sys_page_map(id,(void*)va,envid,(void*)va,uvpt[pn] & PTE_SYSCALL);
+		if(r < 0)
+		{
+			return r;
+		}
+	}
 	// without PTE_COW permission
 	else
 	{
