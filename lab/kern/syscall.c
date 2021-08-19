@@ -89,7 +89,7 @@ sys_exofork(void)
 	}
 	// set attributes according to hint
 	store_env->env_status = ENV_NOT_RUNNABLE;
-	store_env->env_tf = curenv->env_tf;
+	memmove(&store_env->env_tf,&curenv->env_tf,sizeof(curenv->env_tf));
 	store_env->env_tf.tf_regs.reg_eax = 0;
 	return store_env->env_id;
 }
@@ -140,17 +140,17 @@ sys_env_set_trapframe(envid_t envid, struct Trapframe *tf)
 	// address!
 	// panic("sys_env_set_trapframe not implemented");
 	// check the user access to memory
-	user_mem_assert(curenv,(const void*)tf,sizeof(struct Trapframe),PTE_U|PTE_P);
 	struct Env* e = NULL;
 	if(envid2env(envid,&e,1) < 0)
 	{
 		return -E_BAD_ENV;
 	}
+	user_mem_assert(e,(const void*)tf,sizeof(struct Trapframe),PTE_U|PTE_P);
 	// set the trapframe
-	e->env_tf = *tf;
-	e->env_tf.tf_eflags |= FL_IF;
+	tf->tf_eflags |= FL_IF;
 	tf->tf_eflags &= ~FL_IOPL_MASK;
-	e->env_tf.tf_cs |= 3;
+	tf->tf_cs |= 3;
+	e->env_tf = *tf;
 	return 0;
 
 }
@@ -279,7 +279,7 @@ sys_page_map(envid_t srcenvid, void *srcva,
 	}
 
 	int needed_perm = PTE_U|PTE_P;
-	if((perm & ~(PTE_SYSCALL)) || ((perm & needed_perm) != needed_perm))
+	if((perm & ~(PTE_SYSCALL)) || ((perm & needed_perm) == 0))
 	{
 		return -E_INVAL;
 	}
@@ -304,7 +304,7 @@ sys_page_map(envid_t srcenvid, void *srcva,
 	}
 	// -E_INVAL if (perm & PTE_W), but srcva is read-only in srcenvid's
     //		address space.
-	if((!((*pte) & PTE_W)) && (perm & PTE_W))
+	if(((*pte) & PTE_W) == 0 && (perm & PTE_W))
 	{
 		return -E_INVAL;
 	}
@@ -404,11 +404,8 @@ sys_ipc_try_send(envid_t envid, uint32_t value, void *srcva, unsigned perm)
 	{
 		return -E_IPC_NOT_RECV;
 	}
-	if((uintptr_t)srcva >= UTOP)
-	{
-		perm = 0;
-	}
-	if(perm)
+	dst->env_ipc_perm = 0;
+	if((uintptr_t)srcva < UTOP)
 	{
 		// -E_INVAL if srcva < UTOP but srcva is not page-aligned.
 		if((uintptr_t)srcva % PGSIZE)
@@ -437,14 +434,16 @@ sys_ipc_try_send(envid_t envid, uint32_t value, void *srcva, unsigned perm)
 		{
 			return -E_INVAL;
 		}
-
+		if((uintptr_t)(dst->env_ipc_dstva)<UTOP)
+		{
+			dst->env_ipc_perm = perm;
+		}
 		// -E_NO_MEM if there's not enough memory to map srcva in envid's
 		//		address space.
 		if((ret = page_insert(dst->env_pgdir,pg,dst->env_ipc_dstva,perm)) < 0)
 		{
 			return ret;
 		}
-		dst->env_ipc_perm = perm;
 	}
 	// succeeded in sending
 	dst->env_ipc_from = curenv->env_id;

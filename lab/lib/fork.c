@@ -30,7 +30,7 @@ pgfault(struct UTrapframe *utf)
 		{
 			panic("At pgfault:Page fault not write fault");
 		}
-		if(!(uvpt[(uintptr_t)PGNUM(addr)]&PTE_COW))
+		if(!(uvpt[(uintptr_t)PGNUM(addr)]&(PTE_COW|PTE_W)))
 		{
 			panic("At pgfault:Page fault not Copy-on-write");
 		}

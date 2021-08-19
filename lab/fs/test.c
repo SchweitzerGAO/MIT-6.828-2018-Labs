@@ -49,7 +49,7 @@ fs_test(void)
 
 	if ((r = file_set_size(f, 0)) < 0)
 		panic("file_set_size: %e", r);
-	// assert(f->f_direct[0] == 0);
+	assert(f->f_direct[0] == 0);
 	assert(!(uvpt[PGNUM(f)] & PTE_D));
 	cprintf("file_truncate is good\n");
 

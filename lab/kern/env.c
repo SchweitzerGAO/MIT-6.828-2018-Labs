@@ -201,7 +201,7 @@ env_setup_vm(struct Env *e)
 	}
 
 	// above UTOP
-	for(int i = PDX(UTOP);i<NPDENTRIES;i++)
+	for(int i = PDX(UTOP);i<NENV;i++)
 	{
 		e->env_pgdir[i] = kern_pgdir[i];
 	}
@@ -412,10 +412,11 @@ load_icode(struct Env *e, uint8_t *binary)
 			}
 			// allocate space 
 			region_alloc(e,(void*) ph->p_va,ph->p_memsz);
-			// copy to VA
-			memcpy((void*)ph->p_va,binary+ph->p_offset,ph->p_filesz);
-			// set the rest to 0
-			memset((void*)(ph->p_va+ph->p_filesz),0,ph->p_memsz-ph->p_filesz);
+			// set to 0
+			memset((void*)(ph->p_va),0,ph->p_memsz);
+			// move it!
+			memcpy((void*)ph->p_va,binary+ph->p_offset,ph->p_filesz); 
+			
 
 		}
 	}
@@ -455,11 +456,11 @@ env_create(uint8_t *binary, enum EnvType type)
 	
 	// If this is the file server (type == ENV_TYPE_FS) give it I/O privileges.
 	// LAB 5: Your code here.
+	e->env_type = type;
 	if(type == ENV_TYPE_FS)
 	{
 		e->env_tf.tf_eflags |= FL_IOPL_MASK;
 	}
-	e->env_type = type;
 }
 
 //

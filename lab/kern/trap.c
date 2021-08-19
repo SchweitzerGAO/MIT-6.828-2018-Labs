@@ -336,11 +336,13 @@ trap_dispatch(struct Trapframe *tf)
 		}
 		case (IRQ_OFFSET+IRQ_KBD):
 		{
+			lapic_eoi();
 			kbd_intr();
 			return;
 		}
 		case (IRQ_OFFSET+IRQ_SERIAL):
 		{
+			lapic_eoi();
 			serial_intr();
 			return;
 		}

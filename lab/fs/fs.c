@@ -161,26 +161,28 @@ file_block_walk(struct File *f, uint32_t filebno, uint32_t **ppdiskbno, bool all
 	   // directly allocate the block
 	  if(filebno < NDIRECT)
 	  {
-		  uint32_t tmp;
-		  memcpy(&tmp,&(f->f_direct[filebno]),sizeof(uint32_t));
-		  *ppdiskbno = &tmp;
+		//   uint32_t tmp;
+		//   memmove(&tmp,&(f->f_direct[filebno]),sizeof(uint32_t));
+		  *ppdiskbno = &(f->f_direct[filebno]);
+		  return 0;
 	  }
-	  else
+	  if(f->f_indirect == 0)
 	  {
-		  if (f->f_indirect) {
-			ind = diskaddr(f->f_indirect);
-			*ppdiskbno = &(ind[filebno - NDIRECT]);
-		} else {
-			if (!alloc)
-				return -E_NOT_FOUND;
-			if ((blkno = alloc_block()) < 0)
-				return blkno;
-			f->f_indirect = blkno;
-			flush_block(diskaddr(blkno));
-			ind = diskaddr(blkno);
-			*ppdiskbno = &(ind[filebno - NDIRECT]);
-		}
+		  // NOT FOUND err
+		  if(alloc == 0)
+		  {
+			  return -E_NOT_FOUND;
+		  }
+		  int ret = alloc_block();
+		  if(ret < 0)
+		  {
+			  return -E_NO_DISK;
+		  }
+		  f->f_indirect = ret;
+		  memset(diskaddr(ret),0,BLKSIZE);
+		  flush_block(diskaddr(ret));
 	  }
+	  *ppdiskbno = (uint32_t*)diskaddr(f->f_indirect)+filebno-NDIRECT;
 	  return 0;
 
 }
@@ -213,9 +215,10 @@ file_get_block(struct File *f, uint32_t filebno, char **blk)
 			   return ret;
 		   }
 		   *address = ret;
+		   memset(diskaddr(ret),0,BLKSIZE);
+		   flush_block(diskaddr(ret));
 	   }
 	   *blk = (char*)diskaddr(*address);
-	   flush_block(*blk);
 	   return 0;
 	   
 }
@@ -251,7 +254,7 @@ dir_lookup(struct File *dir, const char *name, struct File **file)
 }
 
 // Set *file to point at a free File structure in dir.  The caller is
-// responsible for filling in the File fields.
+// responsible for filling inassert(f->f_direct[0] == 0); the File fields.
 static int
 dir_alloc_file(struct File *dir, struct File **file)
 {

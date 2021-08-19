@@ -106,9 +106,9 @@ spawn(const char *prog, const char **argv)
 	// Set up trap frame, including initial stack.
 	child_tf = envs[ENVX(child)].env_tf;
 	child_tf.tf_eip = elf->e_entry;
-	uintptr_t esp;
-	memcpy(&esp,&(child_tf.tf_esp),sizeof(uintptr_t));
-	if ((r = init_stack(child, argv, &esp)) < 0)
+	// uintptr_t esp;
+	// memmove(&esp,&(child_tf.tf_esp),sizeof(uintptr_t));
+	if ((r = init_stack(child, argv, &(child_tf.tf_esp))) < 0)
 		return r;
 
 	// Set up program segments as defined in ELF header.
@@ -302,26 +302,13 @@ map_segment(envid_t child, uintptr_t va, size_t memsz,
 static int
 copy_shared_pages(envid_t child)
 {
-	for(unsigned i = 0;i<PGNUM(USTACKTOP);i++)
+	for(unsigned i = PGNUM(UTEXT);i<PGNUM(USTACKTOP);i++)
 	{
-		if(i == PGNUM(UXSTACKTOP - PGSIZE))
+		void* addr = (void*)(i*PGSIZE);
+		if((uvpd[i/1024] & PTE_P) && (uvpt[i] & PTE_P) && (uvpt[i] & PTE_SHARE))
 		{
-			continue;
-		}
-		void* addr = (void*)(i * PGSIZE);
-		pte_t pte;
-		if((uvpd[PDX((uintptr_t)addr)] & PTE_P) == 0)
-		{
-			pte = 0;
-		}
-		else
-		{
-			pte = uvpt[PGNUM((uintptr_t)addr)];
-		}
-		if((pte & PTE_P) && (pte & PTE_SHARE))
-		{
-			int ret = sys_page_map(0,addr,child,addr,pte & PTE_SYSCALL);
-			if(ret < 0)
+			int ret = sys_page_map(0,addr,child,addr,uvpt[i]&PTE_SYSCALL);
+			if(ret<0)
 			{
 				return ret;
 			}

@@ -442,3 +442,8 @@ break;
 
 ## 实验收获
 
+这个实验我做的过程中整个人都不好了，至今问题还没有解决。但在debug的过程中收获很大。起因是我在完成Exercise 1 之后编译时会出现如下错误：
+
+![](../images/5-1.png)
+
+然后我按照[这个方法](https://stackoverflow.com/questions/28859127/compiler-warning-when-using-pointers-to-packed-structure-members)中的0赞回答解决了这个问题，罪魁祸首就是它！！！上文代码中的一个大bug解决了。后面就是一些小bug了。解决起来应该不难。

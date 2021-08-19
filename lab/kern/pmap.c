@@ -286,7 +286,7 @@ mem_init_mp(void)
 	for(int i = 0;i<NCPU;i++)
 	{
 		uintptr_t kstacktop_i = (KSTACKTOP-KSTKSIZE)-i*(KSTKSIZE+KSTKGAP);
-		physaddr_t pa = PADDR(percpu_kstacks[i]);
+		physaddr_t pa = PADDR(&percpu_kstacks[i]);
 		boot_map_region(kern_pgdir,kstacktop_i,KSTKSIZE,pa,PTE_W|PTE_P);
 	}
 
@@ -332,7 +332,7 @@ page_init(void)
 	size_t num_iohole = (EXTPHYSMEM-IOPHYSMEM)/PGSIZE;
     
 	// used extmem
-	size_t num_used = ((uint32_t)boot_alloc(0)-EXTPHYSMEM-KERNBASE)/PGSIZE;
+	size_t num_used = (PADDR(boot_alloc(0))-EXTPHYSMEM)/PGSIZE;
 
 	// map MPENTRY_PADDR as used
 	size_t mpentry = MPENTRY_PADDR/PGSIZE;
@@ -751,10 +751,10 @@ user_mem_check(struct Env *env, const void *va, size_t len, int perm)
 	// LAB 3: Your code here.
 	bool check = true;
 	pde_t* pgdir = env->env_pgdir;
-	uintptr_t address = (uintptr_t)va;
+	uintptr_t address = (uintptr_t)ROUNDDOWN(va,PGSIZE);
 	perm = perm | PTE_U | PTE_P;
 	pte_t* entry = NULL;
-	for(; address<(uintptr_t)(va+len);address+=PGSIZE)
+	for(; address<(uintptr_t)ROUNDUP(va+len,PGSIZE);address+=PGSIZE)
 	{
 		// overflow
 		if(address>=ULIM)
