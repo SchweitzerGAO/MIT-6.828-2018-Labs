@@ -442,8 +442,69 @@ break;
 
 ## 实验收获
 
-这个实验我做的过程中整个人都不好了，至今问题还没有解决。但在debug的过程中收获很大。起因是我在完成Exercise 1 之后编译时会出现如下错误：
+这个实验应该是我做的时间最长，收获最大的一个实验。我主要从两个方面来说一下实验收获：
 
-![](../images/5-1.png)
+### 1. debug过程
 
-然后我按照[这个方法](https://stackoverflow.com/questions/28859127/compiler-warning-when-using-pointers-to-packed-structure-members)中的0赞回答解决了这个问题，罪魁祸首就是它！！！上文代码中的一个大bug解决了。后面就是一些小bug了。解决起来应该不难。
+我在实验一开始完成Exercise1之后遇到了下图这个问题：
+
+![5-1](../images/5-1.png)
+
+由于最开始我一直没有找到合适的方法来完全解决这个问题（当时参考了一个帖子，虽然编译不报错，但是会出现更大的问题），导致我后面写的所有代码都通不过`fs/test.c`中`assert(f->f_direct[0] == 0)`这个语句。最终`make grade`得分也非常低：
+
+![5-2](../images/5-2.png)
+
+2021.8.18：我按照[这个方法](https://stackoverflow.com/questions/28859127/compiler-warning-when-using-pointers-to-packed-structure-members)中的回答解决了这个问题。是要从结构体的定义上入手。由于源码中的某些结构体使用了GNU C`__attribute__((packed))`特性，这将会使变量存储时以最小对齐方式对齐，取地址时GCC 9会报错。解决的方法是把`((packed))`改成`((aligned(uint32_t)))`。
+
+后面又遇到了一个bug如下图所示。
+
+![5-3](../images/5-3.png)
+
+`make grade`得分如下：
+
+![5-4](../images/5-4.png)
+
+目前还没有找到问题的原因
+
+2021.8.20 原因找到了，但是还没有找到解决方案，所有的问题本质上都是这里的代码在报错：
+
+```c
+// in "lib/fd.c" function fd_lookup()
+if (!(uvpd[PDX(fd)] & PTE_P) || !(uvpt[PGNUM(fd)] & PTE_P)) {
+		if (debug)
+			cprintf("[%08x] closed fd %d\n", thisenv->env_id, fdnum);
+		return -E_INVAL;
+	}
+```
+
+
+
+### 2. 实验本身的内容
+
+这个实验实现一个文件系统。我需要实现的部分是文件系统的缺页处理、块刷新、文件读写、spawn、状态共享、shell等。总体上，我从这个实验中体会到了理论课上位图块（Block bitmap）的具体操作以及文件读写的操作，如下字符画所示：
+
+```
+ // Read
+ Regular env           FS env
+   +---------------+   +---------------+                                  
+   |      read     |   |   file_read   |
+   |   (lib/fd.c)  |   |   (fs/fs.c)   |
+...|.......|.......|...|.......^.......|...............
+   |       v       |   |       |       | RPC mechanism
+   |  devfile_read |   |  serve_read   |
+   |  (lib/file.c) |   |  (fs/serv.c)  |
+   |       |       |   |       ^       |
+   |       v       |   |       |       |
+   |     fsipc     |   |     serve     |
+   |  (lib/file.c) |   |  (fs/serv.c)  |
+   |       |       |   |       ^       |
+   |       v       |   |       |       |
+   |   ipc_send    |   |   ipc_recv    |
+   |       |       |   |       ^       |
+   +-------|-------+   +-------|-------+
+           |                   |
+           +-------------------+
+```
+
+文件读写机制通过IPC机制从普通进程向文件进程传递信息,实际上是`file_read()`函数在FS进程中进行读文件的工作。
+

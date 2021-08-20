@@ -323,7 +323,7 @@ region_alloc(struct Env *e, void *va, size_t len)
 		}
 
 		// insert into page table
-		int insert = page_insert(e->env_pgdir,p,v,PTE_W|PTE_U);
+		int insert = page_insert(e->env_pgdir,p,v,PTE_W|PTE_U|PTE_P);
 
 		// corner case 3: insertion failed
 		if(insert!=0)

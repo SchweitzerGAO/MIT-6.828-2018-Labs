@@ -302,12 +302,11 @@ map_segment(envid_t child, uintptr_t va, size_t memsz,
 static int
 copy_shared_pages(envid_t child)
 {
-	for(unsigned i = PGNUM(UTEXT);i<PGNUM(USTACKTOP);i++)
+	for(unsigned i = 0;i<USTACKTOP;i+=PGSIZE)
 	{
-		void* addr = (void*)(i*PGSIZE);
-		if((uvpd[i/1024] & PTE_P) && (uvpt[i] & PTE_P) && (uvpt[i] & PTE_SHARE))
+		if((uvpd[PDX(i)] & PTE_P) && (uvpt[PGNUM(i)] & PTE_P) && (uvpt[PGNUM(i)] & PTE_SHARE))
 		{
-			int ret = sys_page_map(0,addr,child,addr,uvpt[i]&PTE_SYSCALL);
+			int ret = sys_page_map(0,(void*)i,child,(void*)i,uvpt[PGNUM(i)]&PTE_SYSCALL);
 			if(ret<0)
 			{
 				return ret;

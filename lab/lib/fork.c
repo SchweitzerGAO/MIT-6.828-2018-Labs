@@ -106,7 +106,7 @@ duppage(envid_t envid, unsigned pn)
 	}
 	else if(uvpt[pn] & PTE_SHARE)
 	{
-		r = sys_page_map(id,(void*)va,envid,(void*)va,uvpt[pn] & PTE_SYSCALL);
+		r = sys_page_map(id,(void*)va,envid,(void*)va, uvpt[pn]&PTE_SYSCALL);
 		if(r < 0)
 		{
 			return r;
@@ -159,22 +159,6 @@ fork(void)
 		thisenv = &envs[ENVX(sys_getenvid())];
 		return 0;
 	}
-	// copy and map
-	for(uintptr_t i = 0;i<USTACKTOP;i+=PGSIZE)
-	{
-		uintptr_t pn = PGNUM(i);
-		// not fully understand
-		if(!(uvpd[i>>PDXSHIFT] & PTE_P) || !(uvpt[pn] & PTE_P))
-		{
-			continue;
-		}
-		ret = duppage(child_id,(unsigned)pn);
-		if(ret < 0)
-		{
-			return ret;
-		}
-		
-	}
 	// allocate new page to the user exception stack of child process
 	int perm = PTE_P|PTE_W|PTE_U;
 	ret = sys_page_alloc(child_id,(void*)(UXSTACKTOP-PGSIZE),perm);
@@ -189,6 +173,22 @@ fork(void)
 	{
 		return ret;
 	}
+	// copy and map
+	for(uintptr_t i = 0;i<USTACKTOP;i+=PGSIZE)
+	{
+		uintptr_t pn = PGNUM(i);
+		// not fully understand
+		if(!(uvpd[PDX(i)] & PTE_P) || !(uvpt[pn] & PTE_P))
+		{
+			continue;
+		}
+		ret = duppage(child_id,(unsigned)pn);
+		if(ret < 0)
+		{
+			return ret;
+		}
+	}
+	
 	// set child process to status RUNNABLE
 	ret = sys_env_set_status(child_id,ENV_RUNNABLE);
 	if(ret < 0)

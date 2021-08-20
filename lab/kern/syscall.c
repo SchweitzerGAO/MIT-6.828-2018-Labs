@@ -214,7 +214,7 @@ sys_page_alloc(envid_t envid, void *va, int perm)
 	
 	// -E_INVAL if perm is inappropriate
 	int needed_perm = PTE_U|PTE_P;
-	if((perm & ~(PTE_SYSCALL)) || ((perm & needed_perm) != needed_perm))
+	if((perm & ~(PTE_SYSCALL)) || ((perm & needed_perm) == 0))
 	{
 		return -E_INVAL;
 	}
@@ -404,7 +404,10 @@ sys_ipc_try_send(envid_t envid, uint32_t value, void *srcva, unsigned perm)
 	{
 		return -E_IPC_NOT_RECV;
 	}
-	dst->env_ipc_perm = 0;
+	if((uintptr_t)srcva >=UTOP)
+	{
+		perm = 0;
+	}
 	if((uintptr_t)srcva < UTOP)
 	{
 		// -E_INVAL if srcva < UTOP but srcva is not page-aligned.
@@ -414,7 +417,7 @@ sys_ipc_try_send(envid_t envid, uint32_t value, void *srcva, unsigned perm)
 		}
 
 		// -E_INVAL if srcva < UTOP and perm is inappropriate
-		if(((perm_needed & perm) != perm_needed) || (perm & (~PTE_SYSCALL)))
+		if(((perm_needed & perm) == 0) || (perm & (~PTE_SYSCALL)))
 		{
 			return -E_INVAL;
 		}
@@ -434,16 +437,13 @@ sys_ipc_try_send(envid_t envid, uint32_t value, void *srcva, unsigned perm)
 		{
 			return -E_INVAL;
 		}
-		if((uintptr_t)(dst->env_ipc_dstva)<UTOP)
-		{
-			dst->env_ipc_perm = perm;
-		}
 		// -E_NO_MEM if there's not enough memory to map srcva in envid's
 		//		address space.
 		if((ret = page_insert(dst->env_pgdir,pg,dst->env_ipc_dstva,perm)) < 0)
 		{
 			return ret;
 		}
+		dst->env_ipc_perm = perm;
 	}
 	// succeeded in sending
 	dst->env_ipc_from = curenv->env_id;
