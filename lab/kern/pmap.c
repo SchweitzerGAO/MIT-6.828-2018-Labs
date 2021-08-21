@@ -483,7 +483,7 @@ pgdir_walk(pde_t *pgdir, const void *va, int create)
 	unsigned int dir_offset = PDX(va);
 	pde_t* entry = pgdir+dir_offset;
 
-	// if not in main memory
+	// if not in memory
 	if(!(*entry & PTE_P))
 	{
 	 	// if create
@@ -665,6 +665,7 @@ page_remove(pde_t *pgdir, void *va)
 	page_decref(page);
 	// invalidate the TLB
 	tlb_invalidate(pgdir,va);
+	// remove the page table information
 	*pte = 0;
 }
 

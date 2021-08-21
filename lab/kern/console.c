@@ -169,8 +169,9 @@ cga_putc(int c)
 {
 	// if no attribute given, then use black on white
 	// colorful terminal
-	if (!(c & ~0xFF))
+	if (!(c & ~0xff))
 	{
+		// get the character
 		char ch = c& 0xff;
 		if(ch>47 && ch<58)
 		{

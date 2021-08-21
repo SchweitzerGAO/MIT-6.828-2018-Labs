@@ -69,7 +69,7 @@ mon_backtrace(int argc, char **argv, struct Trapframe *tf)
         // print address and arguments info
         cprintf("\tebp %08x, eip %09x, args ", ebp, eip);
 
-        uint32_t *args = ebp_base_ptr + 2;
+        uint32_t *args = ebp_base_ptr[2];
 
         for (int i = 0; i < 5; ++i) {
             cprintf("%08x ", args[i]);
@@ -78,6 +78,7 @@ mon_backtrace(int argc, char **argv, struct Trapframe *tf)
         
         // print file line info 
         struct Eipdebuginfo info;
+		// print clear information
         if(debuginfo_eip(eip,&info) == 0)
 		{
 			uint32_t offset = eip-info.eip_fn_addr;

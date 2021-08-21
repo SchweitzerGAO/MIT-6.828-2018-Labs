@@ -415,7 +415,7 @@ load_icode(struct Env *e, uint8_t *binary)
 			// set to 0
 			memset((void*)(ph->p_va),0,ph->p_memsz);
 			// move it!
-			memcpy((void*)ph->p_va,binary+ph->p_offset,ph->p_filesz); 
+			memmove((void*)ph->p_va,binary+ph->p_offset,ph->p_filesz); 
 			
 
 		}
