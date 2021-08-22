@@ -450,6 +450,7 @@ sys_ipc_try_send(envid_t envid, uint32_t value, void *srcva, unsigned perm)
 	dst->env_ipc_value = value;
 	dst->env_ipc_recving = 0;
 	dst->env_status = ENV_RUNNABLE;
+	// ready to input mode(see kern/trap.c and syscall.h )
 	dst->env_tf.tf_regs.reg_eax = 0;
 	return 0;
 }

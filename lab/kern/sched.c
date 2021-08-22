@@ -33,6 +33,7 @@ sched_yield(void)
 	int begin = 0;
 	// flag
 	bool flag = false;
+	// get the current env_id
 	if(curenv)
 	{
 		begin = ENVX(curenv->env_id);
@@ -40,7 +41,9 @@ sched_yield(void)
 	// search the next runnable env(R&R)
 	for(int i = 0;i<NENV;i++)
 	{
+		// round search
 		idle = &envs[(i+begin)%NENV];
+		// if runnable then run it !
 		if(idle->env_status == ENV_RUNNABLE)
 		{
 			flag = true;
@@ -48,13 +51,15 @@ sched_yield(void)
 			break;
 		}
 	}
+	// not found but the current env is running
 	if(!flag && curenv && curenv->env_status == ENV_RUNNING)
 	{
 		env_run(curenv);
 	}
-	// sched_halt never returns
+	// not found and no env is running
 	if(!flag)
 	{
+		// sched_halt never returns
 		sched_halt();
 	}
 }

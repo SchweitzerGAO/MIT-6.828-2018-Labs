@@ -3,6 +3,27 @@
 
 [TOC]
 
+## File Structure
+
+`lab`文件结构：
+
+```
+lab
+├─boot ---- 启动文件
+├─conf ---- 配置文件
+├─fs ----文件系统函数
+├─inc ----头文件
+├─kern ----内核函数
+├─lib ----用户函数
+├─obj ----编译文件
+│  ├─boot
+│  ├─fs
+│  ├─kern
+│  ├─lib
+│  └─user
+└─user ----测试函数
+```
+
 
 
 ## TODOS

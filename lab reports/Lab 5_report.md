@@ -508,3 +508,9 @@ if (!(uvpd[PDX(fd)] & PTE_P) || !(uvpt[PGNUM(fd)] & PTE_P)) {
 
 文件读写机制通过IPC机制从普通进程向文件进程传递信息,实际上是`file_read()`函数在FS进程中进行读文件的工作。
 
+#### 参考资料
+
+[[1]](https://blog.csdn.net/a747979985/article/details/99551678)
+
+[[2]](https://zhuanlan.zhihu.com/p/53676261)
+

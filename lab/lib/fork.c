@@ -91,7 +91,7 @@ duppage(envid_t envid, unsigned pn)
 	int perm = PTE_P|PTE_U;
 	if((uvpt[pn] & PTE_W) || (uvpt[pn] & PTE_COW))
 	{
-		// mappint to envid
+		// mapping to envid
 		r = sys_page_map(id,(void*)va,envid,(void*)va,perm|PTE_COW);
 		if(r < 0)
 		{
@@ -177,7 +177,6 @@ fork(void)
 	for(uintptr_t i = 0;i<USTACKTOP;i+=PGSIZE)
 	{
 		uintptr_t pn = PGNUM(i);
-		// not fully understand
 		if(!(uvpd[PDX(i)] & PTE_P) || !(uvpt[pn] & PTE_P))
 		{
 			continue;

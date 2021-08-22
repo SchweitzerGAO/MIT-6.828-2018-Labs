@@ -590,7 +590,7 @@ env_run(struct Env *e)
 	// panic("env_run not yet implemented");
 
 	// step 1
-	// set the env_status field
+	// set the env_status field to 'READY'
 	if(curenv)
 	{
 		if(curenv->env_status == ENV_RUNNING)
