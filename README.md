@@ -34,7 +34,7 @@ lab
 - [x] Lab 3 User Environments
 - [x] Lab 4 Preemptive Multitask
 - [x] Lab 5 File System & Spawn & Shell
-- [ ] (Optional) Lab 6 Network Driver
+- [ ] Lab 5 Debug
 
 ## Lab 1
 
@@ -80,3 +80,7 @@ lab
 6. 进程的spawn操作
 7. 键盘接口
 8. Shell
+
+## Lab 5 Debug
+
+虽然答辩结束了，但是lab5还是有问题。这个问题可能涉及之前的代码，debug的话工作量应该不小（主要是找bug，IDE调试用不成，backtrace有时候也掉链子，我得手动找）这再开一个report吧。
